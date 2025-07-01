@@ -2,6 +2,29 @@
 
 This document tracks frequently accessed and important files in the Code Racer project.
 
+**🚀 GitHub Repository**: [https://github.com/marvijo-code/code-racer](https://github.com/marvijo-code/code-racer)
+
+## ✅ Project Status (Latest Session)
+
+**Recent Fixes Completed:**
+- 🔧 Fixed PIXI.js initialization issues with proper async handling
+- 🔧 Resolved canvas ref availability problems  
+- 🔧 Implemented proper keyboard input handling with refs
+- 🔧 Fixed backend build issues by clearing locked cache files
+- 🔧 Added comprehensive debugging and error handling
+- 🔧 Successfully deployed to GitHub public repository
+
+**Current Working Features:**
+- ✅ Real-time 2D Racing with PixiJS graphics engine
+- ✅ WASD/Arrow key car controls with physics
+- ✅ Backend API with ASP.NET Core
+- ✅ Database integration with Entity Framework
+- ✅ Question system with 3-option multiple choice format
+- ✅ Race session management
+- ✅ Lives system (3 strikes = spectator mode)
+- ✅ Timer and lap tracking
+- ✅ Leaderboard system
+
 ## Configuration Files
 
 ### Backend Configuration
@@ -17,7 +40,7 @@ This document tracks frequently accessed and important files in the Code Racer p
 
 ### Infrastructure
 - `docker-compose.yml` - Milvus, PostgreSQL, Redis services
-- `README.md` - Project documentation and setup instructions
+- `README.md` - Updated project documentation and setup instructions
 
 ## Backend Core Files
 
@@ -50,9 +73,9 @@ This document tracks frequently accessed and important files in the Code Racer p
 - `frontend/src/main.tsx` - React application entry point
 - `frontend/src/App.tsx` - Main application component
 
-### Game Components
+### Game Components (Recently Fixed)
 - `frontend/src/components/Game.tsx` - Main game orchestrator
-- `frontend/src/components/RaceTrack.tsx` - PixiJS 2D racing engine
+- `frontend/src/components/RaceTrack.tsx` - **FIXED**: PixiJS 2D racing engine with proper async initialization and keyboard input handling
 - `frontend/src/components/QuizOverlay.tsx` - Question modal with 3-option format
 - `frontend/src/components/Leaderboard.tsx` - Rankings display
 
@@ -63,14 +86,14 @@ This document tracks frequently accessed and important files in the Code Racer p
 - `frontend/src/lib/api.ts` - Backend API client with updated Question interface
 
 ### Styling
-- `frontend/src/App.css` - Main application styles
+- `frontend/src/App.css` - Main application styles including loading track styles
 - `frontend/src/index.css` - Global styles and CSS reset
 
 ## Documentation
 
 ### Project Documentation
 - `docs/initial-implementation-plan.md` - Updated comprehensive implementation plan
-- `README.md` - Setup instructions and project overview
+- `README.md` - **UPDATED**: Setup instructions, current status, and GitHub repository link
 
 ### AI Assistant Rules
 - `.ai-rules/important-file-paths.md` - This file (frequently accessed paths)
@@ -80,9 +103,11 @@ This document tracks frequently accessed and important files in the Code Racer p
 ### Database Migrations
 - `Backend/Migrations/` - Entity Framework migration files (auto-generated)
 
-### Build Outputs
+### Build Outputs (Recently Fixed)
 - `Backend/bin/Debug/net9.0/` - Compiled backend application
 - `frontend/dist/` - Built frontend assets (after npm run build)
+
+**Note**: If build issues occur, clear `Backend/obj` and `Backend/bin` directories.
 
 ## Port Configuration Summary
 
@@ -104,8 +129,9 @@ This document tracks frequently accessed and important files in the Code Racer p
 - **Character Limits**: Question (200 chars), Options (80 chars each)
 - **Topics**: JavaScript, C#, SOLID, Algorithms
 
-### Game Mechanics
-- **Real-time Racing**: PixiJS-powered 2D car physics
+### Game Mechanics (Recently Fixed)
+- **Real-time Racing**: **FIXED** PixiJS-powered 2D car physics with proper initialization
+- **Keyboard Controls**: **FIXED** WASD/Arrow key input handling with refs
 - **Lives System**: 3 strikes = spectator mode
 - **Checkpoints**: Trigger quiz overlays with 10-second timer
 - **Leaderboards**: Daily/weekly/monthly/all-time rankings
@@ -114,4 +140,27 @@ This document tracks frequently accessed and important files in the Code Racer p
 - **Vector Embeddings**: OpenAI text-embedding-3-small (1536 dimensions)
 - **Similarity Threshold**: 0.85 cosine similarity
 - **Real-time Communication**: SignalR for live updates
-- **Database**: SQLite (dev) / PostgreSQL (prod) + Milvus (vectors) 
+- **Database**: SQLite (dev) / PostgreSQL (prod) + Milvus (vectors)
+
+## Troubleshooting Guide
+
+### Common Issues (Recently Resolved):
+1. **"Canvas ref not available"** - ✅ Fixed with proper ref handling
+2. **PIXI.js initialization stuck** - ✅ Fixed with async initialization and proper cleanup
+3. **Backend build errors** - ✅ Clear `Backend/obj` and `Backend/bin` directories
+4. **Keyboard controls not working** - ✅ Fixed with ref-based input handling
+
+### Debug Information:
+- Check browser console for PIXI.js initialization logs
+- Backend logs show Milvus initialization status
+- Frontend shows canvas ready status in loading screen
+
+## Next Development Session Priorities
+
+**Potential Areas for Enhancement:**
+1. **Improve Game Physics**: Fine-tune car movement and collision detection
+2. **Quiz System**: Implement checkpoint collision detection for quiz triggers
+3. **Real-time Features**: Add SignalR integration for multiplayer
+4. **Performance**: Optimize PIXI.js rendering and game loop
+5. **UI/UX**: Enhance visual feedback and animations
+6. **Testing**: Add unit tests for critical components 

@@ -2,9 +2,32 @@
 
 A Vite + React 2D racing game that teaches Software Engineering skills through semantic question diversity and real-time competition.
 
+**🚀 Live Repository**: [https://github.com/marvijo-code/code-racer](https://github.com/marvijo-code/code-racer)
+
 ## 🎮 Game Overview
 
 Code Racer combines the excitement of racing with educational software engineering challenges. Players control a car through a race track, and must answer programming questions at checkpoints to continue. Wrong answers cost lives, and running out of lives puts you in spectator mode!
+
+### ✅ Current Status
+
+**Working Features:**
+- ✅ Real-time 2D Racing with PixiJS graphics engine
+- ✅ WASD/Arrow key car controls with physics
+- ✅ Backend API with ASP.NET Core
+- ✅ Database integration with Entity Framework
+- ✅ Question system with 3-option multiple choice format
+- ✅ Race session management
+- ✅ Lives system (3 strikes = spectator mode)
+- ✅ Timer and lap tracking
+- ✅ Leaderboard system
+
+**Recent Fixes (Latest Session):**
+- 🔧 Fixed PIXI.js initialization issues with proper async handling
+- 🔧 Resolved canvas ref availability problems
+- 🔧 Implemented proper keyboard input handling with refs
+- 🔧 Fixed backend build issues by clearing locked cache files
+- 🔧 Added comprehensive debugging and error handling
+- 🔧 Successfully deployed to GitHub public repository
 
 ### Features
 
@@ -29,8 +52,8 @@ Code Racer combines the excitement of racing with educational software engineeri
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd devupper-cursor
+   git clone https://github.com/marvijo-code/code-racer.git
+   cd code-racer
    ```
 
 2. **Start the infrastructure services**
@@ -92,11 +115,24 @@ Code Racer combines the excitement of racing with educational software engineeri
 6. **Spectate**: After 3 wrong answers, watch AI complete the race
 7. **Check Leaderboards**: See how you rank against other players
 
+## 🐛 Known Issues & Troubleshooting
+
+### Common Issues:
+1. **"Canvas ref not available"** - Fixed in latest version with proper ref handling
+2. **PIXI.js initialization stuck** - Fixed with async initialization and proper cleanup
+3. **Backend build errors** - Clear `Backend/obj` and `Backend/bin` directories if needed
+4. **Keyboard controls not working** - Fixed with ref-based input handling
+
+### Debug Information:
+- Check browser console for PIXI.js initialization logs
+- Backend logs show Milvus initialization status
+- Frontend shows canvas ready status in loading screen
+
 ## 🏗️ Architecture
 
 ### Frontend (React + TypeScript + Vite)
-- **PixiJS**: 2D graphics rendering
-- **Zustand**: State management
+- **PixiJS**: 2D graphics rendering with proper async initialization
+- **Zustand**: State management for game state
 - **React Query**: Server state management
 - **SignalR Client**: Real-time communication
 
@@ -117,10 +153,10 @@ Code Racer combines the excitement of racing with educational software engineeri
 ### Project Structure
 
 ```
-devupper-cursor/
+code-racer/
 ├── frontend/                 # React frontend
 │   ├── src/
-│   │   ├── components/      # React components
+│   │   ├── components/      # React components (Game, RaceTrack, QuizOverlay)
 │   │   ├── features/        # Feature-specific code
 │   │   ├── lib/            # API client and utilities
 │   │   ├── state/          # Zustand stores
@@ -135,6 +171,18 @@ devupper-cursor/
 ├── docs/                   # Documentation
 └── docker-compose.yml     # Local development setup
 ```
+
+### Port Configuration
+
+| Service | Port | URL | Purpose |
+|---------|------|-----|---------|
+| Frontend | 3113 | http://localhost:3113 | React development server |
+| Backend HTTPS | 8443 | https://localhost:8443 | API and SignalR hub |
+| Backend HTTP | 8080 | http://localhost:8080 | Alternative API access |
+| PostgreSQL | 5432 | localhost:5432 | Primary database |
+| Milvus | 19530 | localhost:19530 | Vector database |
+| Attu UI | 3001 | http://localhost:3001 | Milvus admin interface |
+| Redis | 6379 | localhost:6379 | Caching layer |
 
 ### API Endpoints
 
@@ -195,76 +243,27 @@ Questions are rated 1-10 difficulty:
 ```
 
 ### Frontend Configuration
-The frontend runs on port 3113 and connects to the backend API:
-```typescript
-// frontend/src/lib/api.ts
-const API_BASE_URL = 'https://localhost:8443/api/v1';
-const SIGNALR_URL = 'https://localhost:8443/raceHub';
-```
-
-## 🚀 Deployment
-
-### Docker Deployment
-```bash
-# Build and run everything
-docker-compose up --build
-
-# Run in background
-docker-compose up -d
-```
-
-### Production Considerations
-- Use environment variables for sensitive configuration
-- Enable HTTPS in production
-- Configure CORS for your domain
-- Set up proper logging and monitoring
-- Use a managed PostgreSQL service
-
-## 🧪 Testing
-
-### Frontend Tests
-```bash
-cd frontend
-npm run test
-```
-
-### Backend Tests
-```bash
-cd Backend
-dotnet test
-```
-
-## 📈 Future Enhancements
-
-- **Multiplayer Racing**: Real-time races with multiple players
-- **Tournament Mode**: Bracket-style competitions
-- **Custom Question Packs**: User-generated content
-- **Mobile Support**: React Native version
-- **AI Opponents**: Computer-controlled racers
-- **Power-ups**: Boost items for correct answer streaks
-- **Track Editor**: User-created race tracks
+The frontend runs on port 3113 and connects to the backend API.
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/semantic-questions`)
-3. Commit your changes (`git commit -m 'Add semantic questions'`)
-4. Push to the branch (`git push origin feature/semantic-questions`)
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📄 License
+## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🎯 Learning Objectives
+## 🙏 Acknowledgments
 
-Code Racer is designed to help developers:
-- **Reinforce fundamentals** through timed challenges
-- **Learn new concepts** in an engaging format
-- **Practice under pressure** with time constraints
-- **Track progress** through difficulty scaling
-- **Compete with peers** via leaderboards
+- Built with React, TypeScript, and PixiJS
+- Backend powered by ASP.NET Core and Entity Framework
+- Vector similarity powered by OpenAI embeddings
+- Real-time communication via SignalR
 
 ---
 
-**Ready to race and learn? Start your engines! 🏁** 
+**Ready to race? 🏎️ Clone the repo and start your engines!** 
