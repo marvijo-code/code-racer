@@ -15,17 +15,14 @@ export const QuizOverlay: React.FC = () => {
     setLives,
     incrementStreak,
     resetStreak,
-    setGameMode
+    setGameMode,
+    addToast
   } = useGameStore();
 
   const [selectedAnswer, setSelectedAnswer] = useState<string>('');
   const [timeLeft, setTimeLeft] = useState<number>(10);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [feedback, setFeedback] = useState<{ show: boolean; correct: boolean; message: string }>({
-    show: false,
-    correct: false,
-    message: ''
-  });
+  const [showQuestionOnly, setShowQuestionOnly] = useState(false);
 
   // Load question when quiz becomes active
   useEffect(() => {
@@ -36,7 +33,7 @@ export const QuizOverlay: React.FC = () => {
 
   // Timer countdown
   useEffect(() => {
-    if (!isQuizActive || feedback.show) return;
+    if (!isQuizActive || showQuestionOnly) return;
 
     const timer = setInterval(() => {
       const elapsed = (Date.now() - questionStartTime) / 1000;
@@ -49,7 +46,7 @@ export const QuizOverlay: React.FC = () => {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [isQuizActive, questionStartTime, feedback.show]);
+  }, [isQuizActive, questionStartTime, showQuestionOnly]);
 
   const loadRandomQuestion = async () => {
     try {
@@ -81,12 +78,16 @@ export const QuizOverlay: React.FC = () => {
       const correctAnswerText = currentQuestion.correctOption === 'A' ? currentQuestion.optionA :
                                currentQuestion.correctOption === 'B' ? currentQuestion.optionB : 
                                currentQuestion.optionC;
-      setFeedback({
-        show: true,
-        correct: result.isCorrect,
-        message: result.isCorrect 
-          ? '🎉 Correct! Great job!' 
-          : `❌ Wrong! The correct answer was: ${currentQuestion.correctOption}. ${correctAnswerText}`
+
+      // Show toast notification
+      const toastMessage = result.isCorrect 
+        ? 'Correct! Great job!' 
+        : `Wrong! The correct answer was: ${currentQuestion.correctOption}. ${correctAnswerText}`;
+      
+      addToast({
+        message: toastMessage,
+        type: result.isCorrect ? 'success' : 'error',
+        duration: 3000
       });
 
       if (result.isCorrect) {
@@ -101,22 +102,18 @@ export const QuizOverlay: React.FC = () => {
         }
       }
 
-      // Auto-close after 2 seconds
-      setTimeout(() => {
-        closeQuiz();
-      }, 2000);
+      // Close quiz immediately
+      closeQuiz();
 
     } catch (error) {
       console.error('Failed to submit answer:', error);
-      setFeedback({
-        show: true,
-        correct: false,
-        message: 'Error submitting answer. Please try again.'
+      addToast({
+        message: 'Error submitting answer. Please try again.',
+        type: 'error',
+        duration: 3000
       });
       
-      setTimeout(() => {
-        closeQuiz();
-      }, 2000);
+      closeQuiz();
     } finally {
       setIsSubmitting(false);
     }
@@ -127,7 +124,7 @@ export const QuizOverlay: React.FC = () => {
     setCurrentQuestion(null);
     setSelectedAnswer('');
     setTimeLeft(10);
-    setFeedback({ show: false, correct: false, message: '' });
+    setShowQuestionOnly(false);
   };
 
   if (!isQuizActive || !currentQuestion) {
@@ -153,37 +150,29 @@ export const QuizOverlay: React.FC = () => {
           </div>
         </div>
 
-        {feedback.show ? (
-          <div className={`feedback ${feedback.correct ? 'correct' : 'incorrect'}`}>
-            <h3>{feedback.message}</h3>
+        <div className="question">
+          <h3>{currentQuestion.bodyMarkup}</h3>
+          <div className="topic-difficulty">
+            <span className="topic">{currentQuestion.topic}</span>
+            <span className="difficulty">Difficulty: {currentQuestion.difficulty}/10</span>
           </div>
-        ) : (
-          <>
-            <div className="question">
-              <h3>{currentQuestion.bodyMarkup}</h3>
-              <div className="topic-difficulty">
-                <span className="topic">{currentQuestion.topic}</span>
-                <span className="difficulty">Difficulty: {currentQuestion.difficulty}/10</span>
-              </div>
-            </div>
+        </div>
 
-            <div className="choices">
-              {choices.map((choice) => (
-                <button
-                  key={choice.key}
-                  className={`choice-button ${selectedAnswer === choice.key ? 'selected' : ''}`}
-                  onClick={() => {
-                    setSelectedAnswer(choice.key);
-                    handleAnswerSubmit(choice.key);
-                  }}
-                  disabled={isSubmitting}
-                >
-                  {choice.key}. {choice.text}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+        <div className="choices">
+          {choices.map((choice) => (
+            <button
+              key={choice.key}
+              className={`choice-button ${selectedAnswer === choice.key ? 'selected' : ''}`}
+              onClick={() => {
+                setSelectedAnswer(choice.key);
+                handleAnswerSubmit(choice.key);
+              }}
+              disabled={isSubmitting}
+            >
+              {choice.key}. {choice.text}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { apiClient } from '../lib/api';
 import { RaceTrack } from './RaceTrack';
 import { QuizOverlay } from './QuizOverlay';
 import { Leaderboard } from './Leaderboard';
+import { ToastContainer } from './Toast';
 
 export const Game: React.FC = () => {
   const {
@@ -23,7 +24,9 @@ export const Game: React.FC = () => {
     resetGame,
     hasFinished,
     speedBoost,
-    bots
+    bots,
+    toasts,
+    removeToast
   } = useGameStore();
 
   const [startTime, setStartTime] = useState<number>(0);
@@ -203,6 +206,7 @@ export const Game: React.FC = () => {
       )}
 
       <QuizOverlay />
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }; 

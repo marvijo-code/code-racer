@@ -33,6 +33,13 @@ export interface DifficultyCheckpoint {
   completed: boolean;
 }
 
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+  duration?: number;
+}
+
 export interface GameState {
   // Session management
   currentSession: RaceSession | null;
@@ -62,6 +69,9 @@ export interface GameState {
   // Leaderboard
   leaderboard: LeaderboardEntry[];
   
+  // Notifications
+  toasts: Toast[];
+  
   // Game mode
   gameMode: 'racing' | 'spectating' | 'finished';
   
@@ -85,16 +95,18 @@ export interface GameState {
   incrementStreak: () => void;
   resetStreak: () => void;
   setLeaderboard: (leaderboard: LeaderboardEntry[]) => void;
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
   setGameMode: (mode: 'racing' | 'spectating' | 'finished') => void;
   updateLapTime: (time: number) => void;
   resetGame: () => void;
 }
 
 const initialCarPosition: CarPosition = {
-  x: 200,
-  y: 720, // Start at bottom of taller track
-  rotation: 0,
-  speed: 1, // Default speed to 1 (slow)
+  x: 250, // Start at left side with bots
+  y: 2100, // Start at bottom of larger world (worldHeight = 2400)
+  rotation: -Math.PI / 2, // Point upward towards finish line
+  speed: 0.5, // Even slower default speed
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -117,6 +129,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   questionStartTime: 0,
   streak: 0,
   leaderboard: [],
+  toasts: [],
   gameMode: 'racing',
   
   // Actions
@@ -158,6 +171,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetStreak: () => set({ streak: 0 }),
   
   setLeaderboard: (leaderboard) => set({ leaderboard }),
+  
+  addToast: (toast) => set((state) => ({
+    toasts: [...state.toasts, { ...toast, id: Date.now().toString() + Math.random().toString(36) }]
+  })),
+  removeToast: (id) => set((state) => ({
+    toasts: state.toasts.filter(toast => toast.id !== id)
+  })),
+  
   setGameMode: (mode) => set({ gameMode: mode }),
   updateLapTime: (time) => set({ lapTime: time }),
   
@@ -177,6 +198,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     isQuizActive: false,
     questionStartTime: 0,
     streak: 0,
+    toasts: [],
     gameMode: 'racing',
   }),
 })); 

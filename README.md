@@ -13,6 +13,10 @@ Code Racer combines the excitement of racing with educational software engineeri
 **Working Features:**
 - ✅ Real-time 2D Racing with PixiJS graphics engine
 - ✅ WASD/Arrow key car controls with physics
+- ✅ AI Bot Racing with 4 skill levels (Beginner/Intermediate/Expert/Master)
+- ✅ 14 difficulty-based checkpoints with speed boosts
+- ✅ Continuous track guidance with 23 direction arrows
+- ✅ Mobile-friendly full-screen design (no scrolling)
 - ✅ Backend API with ASP.NET Core
 - ✅ Database integration with Entity Framework
 - ✅ Question system with 3-option multiple choice format
@@ -22,6 +26,11 @@ Code Racer combines the excitement of racing with educational software engineeri
 - ✅ Leaderboard system
 
 **Recent Fixes (Latest Session):**
+- ✅ **Player Starting Position** - Player now starts alongside AI bots at same location
+- ✅ **Track Guidance** - Added 23 continuous direction arrows around track
+- ✅ **More Questions** - Increased checkpoints from 5 to 14 with strategic placement  
+- ✅ **Mobile Experience** - Fixed scrolling issues with full-screen no-scroll design
+- ✅ **Game Title** - Updated from "Vite + React + TS" to "Code Racer"
 - 🔧 Fixed PIXI.js initialization issues with proper async handling
 - 🔧 Resolved canvas ref availability problems
 - 🔧 Implemented proper keyboard input handling with refs
@@ -32,6 +41,10 @@ Code Racer combines the excitement of racing with educational software engineeri
 ### Features
 
 - **Real-time 2D Racing**: PixiJS-powered car physics with WASD/arrow key controls
+- **AI Bot Competition**: 4 AI racers with different skill levels racing alongside you
+- **Track Guidance**: 23 direction arrows continuously guide you around the track
+- **Difficulty Checkpoints**: 14 strategic checkpoints with varying difficulties (1-10) and speed boosts
+- **Mobile Optimized**: Full-screen experience on mobile devices with no scrolling
 - **Semantic Question Filtering**: OpenAI embeddings + cosine similarity prevent repetitive questions
 - **Standardized Format**: All questions are multiple choice with exactly 3 options (A, B, C)
 - **Smart Difficulty**: Dynamic question selection based on player progress

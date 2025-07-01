@@ -148,12 +148,9 @@ public class QuestionsController : ControllerBase
                 topic = question.Topic,
                 difficulty = question.Difficulty,
                 bodyMarkup = question.BodyMarkup,
-                options = new
-                {
-                    A = question.OptionA,
-                    B = question.OptionB,
-                    C = question.OptionC
-                },
+                optionA = question.OptionA,
+                optionB = question.OptionB,
+                optionC = question.OptionC,
                 correctOption = question.CorrectOption.ToString(),
                 timeLimit = 10 // 10 seconds for all questions
             };

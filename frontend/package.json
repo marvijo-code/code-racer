@@ -12,6 +12,7 @@
   "dependencies": {
     "@microsoft/signalr": "^8.0.7",
     "@tanstack/react-query": "^5.81.5",
+    "pixi-viewport": "^6.0.3",
     "pixi.js": "^8.10.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

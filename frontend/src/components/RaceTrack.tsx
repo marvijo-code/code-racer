@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
+import { Viewport } from 'pixi-viewport';
 import { useGameStore } from '../state/gameStore';
 import type { BotCar, DifficultyCheckpoint } from '../state/gameStore';
 import { uniqueNamesGenerator, adjectives, colors, animals } from 'unique-names-generator';
@@ -12,6 +13,7 @@ interface RaceTrackProps {
 export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
+  const viewportRef = useRef<Viewport | null>(null);
   const carSpriteRef = useRef<PIXI.Graphics | null>(null);
   const trackRef = useRef<PIXI.Graphics | null>(null);
   const checkpointRef = useRef<PIXI.Graphics | null>(null);
@@ -48,6 +50,7 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
   const generateBots = (): BotCar[] => {
     const skillLevels: BotCar['skillLevel'][] = ['Beginner', 'Intermediate', 'Expert', 'Master'];
     const botColors = [0xFF6B6B, 0x4ECDC4, 0x45B7D1, 0x96CEB4, 0xFECA57];
+    const worldHeight = height * 3; // Match the world height
     
     return skillLevels.map((skillLevel, index) => {
       const randomName = uniqueNamesGenerator({
@@ -61,9 +64,9 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
         name: randomName,
         skillLevel,
         position: {
-          x: 200 + index * 50, // Spread out horizontally at start line
-          y: height - 90, // All start at bottom
-          rotation: 0,
+          x: 300 + index * 50, // Spread out horizontally at start line, next to player
+          y: worldHeight - 90, // All start at bottom of world (2310)
+          rotation: -Math.PI / 2, // Point upward like player
           speed: 1, // Default speed 1
         },
         color: botColors[index],
@@ -82,20 +85,42 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
   const generateDifficultyCheckpoints = (): DifficultyCheckpoint[] => {
     const checkpoints: DifficultyCheckpoint[] = [];
     const colors = [0x00FF00, 0xFFFF00, 0xFFA500, 0xFF0000, 0x800080];
+    const worldWidth = width * 2;
+    const worldHeight = height * 3;
     
-    // Create checkpoints at different positions with varying difficulties
-    for (let i = 0; i < 5; i++) {
-      const difficulty = Math.floor(Math.random() * 5) + 1 + i; // 1-10 range
+    // Create more checkpoints scattered around the track
+    const checkpointPositions = [
+      // Right side going up
+      { x: worldWidth - 400, y: 1800, difficulty: 2 },
+      { x: worldWidth - 350, y: 1400, difficulty: 4 },
+      { x: worldWidth - 400, y: 1000, difficulty: 3 },
+      { x: worldWidth - 350, y: 600, difficulty: 6 },
+      // Top section
+      { x: worldWidth - 600, y: 400, difficulty: 5 },
+      { x: worldWidth / 2, y: 350, difficulty: 8 },
+      { x: 600, y: 400, difficulty: 7 },
+      // Left side going down
+      { x: 350, y: 600, difficulty: 4 },
+      { x: 400, y: 1000, difficulty: 6 },
+      { x: 350, y: 1400, difficulty: 3 },
+      { x: 400, y: 1800, difficulty: 5 },
+      // Bottom section
+      { x: 600, y: 2000, difficulty: 2 },
+      { x: worldWidth / 2, y: 2050, difficulty: 9 },
+      { x: worldWidth - 600, y: 2000, difficulty: 7 }
+    ];
+    
+    checkpointPositions.forEach((pos, i) => {
       checkpoints.push({
         id: `checkpoint_${i}`,
-        x: 150 + i * 120,
-        y: 200 + Math.sin(i) * 100,
-        difficulty: Math.min(difficulty, 10),
-        speedBoost: 1 + (difficulty * 0.1), // 1.1x to 2.0x speed boost
-        color: colors[Math.floor(difficulty / 2)],
+        x: pos.x,
+        y: pos.y,
+        difficulty: pos.difficulty,
+        speedBoost: 1 + (pos.difficulty * 0.1), // 1.1x to 2.0x speed boost
+        color: colors[Math.floor((pos.difficulty - 1) / 2)],
         completed: false
       });
-    }
+    });
     
     return checkpoints;
   };
@@ -166,62 +191,118 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
         canvasRef.current.appendChild(app.canvas);
         console.log('Canvas added to DOM');
 
-        // Create F1-style track with realistic curves
+        // Create viewport for camera following
+        const worldWidth = width * 2; // Make world larger than screen
+        const worldHeight = height * 3; // Much taller world
+        const viewport = new Viewport({
+          screenWidth: width,
+          screenHeight: height,
+          worldWidth: worldWidth,
+          worldHeight: worldHeight,
+          events: app.renderer.events
+        });
+
+        // Add viewport to stage
+        app.stage.addChild(viewport);
+        viewportRef.current = viewport;
+        
+        // Enable camera following and bounds
+        viewport
+          .drag()
+          .pinch()
+          .wheel()
+          .decelerate()
+          .clampZoom({
+            minScale: 0.5,
+            maxScale: 2
+          });
+
+        console.log('Viewport created and configured');
+
+        // Create F1-style track with realistic curves (larger world)
         const track = new PIXI.Graphics();
         
-        // Outer track boundary
-        track.roundRect(50, 50, width - 100, height - 100, 30);
-        track.stroke({ width: 25, color: 0x444444 });
+        // Outer track boundary - larger oval track
+        track.roundRect(100, 100, worldWidth - 200, worldHeight - 200, 50);
+        track.stroke({ width: 30, color: 0x444444 });
         
         // Inner track boundary  
-        track.roundRect(120, 120, width - 240, height - 240, 25);
-        track.stroke({ width: 25, color: 0x444444 });
+        track.roundRect(200, 200, worldWidth - 400, worldHeight - 400, 40);
+        track.stroke({ width: 30, color: 0x444444 });
         
-        // Start/finish line area
-        track.rect(120, height - 150, width - 240, 100);
+        // Start/finish line area (at bottom of world)
+        track.rect(200, worldHeight - 300, worldWidth - 400, 150);
         track.fill({ color: 0x666666, alpha: 0.3 });
         
-        // Add center line markings
-        const centerX = width / 2;
-        for (let y = 60; y < height - 60; y += 40) {
-          track.rect(centerX - 3, y, 6, 20);
+        // Add center line markings along the track
+        const centerX = worldWidth / 2;
+        for (let y = 120; y < worldHeight - 120; y += 60) {
+          track.rect(centerX - 4, y, 8, 30);
           track.fill({ color: 0xFFFFFF });
         }
         
-        // Add direction arrows
+        // Add many direction arrows around the track for guidance
         const arrowPositions = [
-          { x: width / 2, y: height - 200, rotation: -Math.PI / 2 }, // Up at start
-          { x: width - 150, y: height / 2, rotation: Math.PI }, // Left at right turn
-          { x: width / 2, y: 150, rotation: Math.PI / 2 }, // Down at top
-          { x: 150, y: height / 2, rotation: 0 }, // Right at left turn
+          // Bottom straight - going up
+          { x: worldWidth / 2, y: worldHeight - 400, rotation: -Math.PI / 2 },
+          { x: worldWidth / 2, y: worldHeight - 600, rotation: -Math.PI / 2 },
+          { x: worldWidth / 2, y: worldHeight - 800, rotation: -Math.PI / 2 },
+          // Right side going up
+          { x: worldWidth - 300, y: 1600, rotation: -Math.PI / 2 },
+          { x: worldWidth - 300, y: 1200, rotation: -Math.PI / 2 },
+          { x: worldWidth - 300, y: 800, rotation: -Math.PI / 2 },
+          // Right turn at top
+          { x: worldWidth - 400, y: 400, rotation: -Math.PI / 4 },
+          { x: worldWidth - 600, y: 300, rotation: Math.PI },
+          // Top straight - going left
+          { x: worldWidth - 800, y: 250, rotation: Math.PI },
+          { x: worldWidth / 2, y: 250, rotation: Math.PI },
+          { x: 800, y: 250, rotation: Math.PI },
+          // Left turn at top
+          { x: 400, y: 300, rotation: 3 * Math.PI / 4 },
+          { x: 300, y: 400, rotation: Math.PI / 2 },
+          // Left side going down
+          { x: 300, y: 800, rotation: Math.PI / 2 },
+          { x: 300, y: 1200, rotation: Math.PI / 2 },
+          { x: 300, y: 1600, rotation: Math.PI / 2 },
+          // Left turn at bottom
+          { x: 400, y: worldHeight - 400, rotation: Math.PI / 4 },
+          { x: 600, y: worldHeight - 300, rotation: 0 },
+          // Bottom straight - going right
+          { x: 800, y: worldHeight - 250, rotation: 0 },
+          { x: worldWidth / 2, y: worldHeight - 250, rotation: 0 },
+          { x: worldWidth - 800, y: worldHeight - 250, rotation: 0 },
+          // Right turn at bottom
+          { x: worldWidth - 600, y: worldHeight - 300, rotation: -Math.PI / 4 },
+          { x: worldWidth - 400, y: worldHeight - 400, rotation: -Math.PI / 2 }
         ];
         
         arrowPositions.forEach(arrow => {
           const arrowSprite = new PIXI.Graphics();
-          arrowSprite.moveTo(0, -10);
-          arrowSprite.lineTo(15, 0);
-          arrowSprite.lineTo(0, 10);
-          arrowSprite.lineTo(5, 0);
+          arrowSprite.moveTo(0, -15);
+          arrowSprite.lineTo(20, 0);
+          arrowSprite.lineTo(0, 15);
+          arrowSprite.lineTo(8, 0);
           arrowSprite.closePath();
           arrowSprite.fill({ color: 0x00FF00 });
           arrowSprite.x = arrow.x;
           arrowSprite.y = arrow.y;
           arrowSprite.rotation = arrow.rotation;
-          app.stage.addChild(arrowSprite);
+          viewport.addChild(arrowSprite);
         });
         
         trackRef.current = track;
-        app.stage.addChild(track);
-        console.log('F1-style track created and added to stage');
+        viewport.addChild(track);
+        console.log('Large F1-style track created and added to viewport');
 
-        // Create finish line at the top
+        // Create finish line at the top of world
         const finishLine = new PIXI.Graphics();
-        finishLine.rect(120, 60, width - 240, 15);
+        finishLine.rect(200, 150, worldWidth - 400, 20);
         finishLine.fill({ color: 0x000000 });
         // Add checkered pattern
-        for (let i = 0; i < (width - 240) / 25; i++) {
+        for (let i = 0; i < (worldWidth - 400) / 30; i++) {
           if (i % 2 === 0) {
-            finishLine.rect(120 + i * 25, 60, 25, 15);
+            finishLine.rect(200 + i * 30, 150, 30, 20);
             finishLine.fill({ color: 0xFFFFFF });
           }
         }
@@ -230,27 +311,27 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
         const finishText = new PIXI.Text({
           text: 'FINISH',
           style: {
-            fontSize: 24,
+            fontSize: 32,
             fill: 0xFFFFFF,
             fontWeight: 'bold'
           }
         });
         finishText.anchor.set(0.5);
-        finishText.x = width / 2;
-        finishText.y = 35;
-        app.stage.addChild(finishText);
+        finishText.x = worldWidth / 2;
+        finishText.y = 120;
+        viewport.addChild(finishText);
         
         finishLineRef.current = finishLine;
-        app.stage.addChild(finishLine);
-        console.log('Finish line created and added to stage');
+        viewport.addChild(finishLine);
+        console.log('Finish line created and added to viewport');
 
         // Create checkpoint (mid-track)
         const checkpoint = new PIXI.Graphics();
-        checkpoint.rect(width / 2 - 25, height / 2 - 50, 50, 100);
+        checkpoint.rect(worldWidth / 2 - 30, worldHeight / 2 - 60, 60, 120);
         checkpoint.fill({ color: 0xFF0000, alpha: 0.5 });
         checkpointRef.current = checkpoint;
-        app.stage.addChild(checkpoint);
-        console.log('Checkpoint created and added to stage');
+        viewport.addChild(checkpoint);
+        console.log('Checkpoint created and added to viewport');
 
         // Create realistic player car
         const car = new PIXI.Graphics();
@@ -272,8 +353,8 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
         car.rotation = carPosition.rotation;
         
         carSpriteRef.current = car;
-        app.stage.addChild(car);
-        console.log('Realistic player car created and added to stage');
+        viewport.addChild(car);
+        console.log('Realistic player car created and added to viewport');
 
         // Create difficulty checkpoints
         const state = useGameStore.getState();
@@ -297,9 +378,9 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
           checkpointSprite.addChild(text);
           
           difficultyCheckpointSpritesRef.current.set(checkpoint.id, checkpointSprite);
-          app.stage.addChild(checkpointSprite);
+          viewport.addChild(checkpointSprite);
         });
-        console.log('Difficulty checkpoints created and added to stage');
+        console.log('Difficulty checkpoints created and added to viewport');
 
         // Create realistic bot cars
         state.bots.forEach(bot => {
@@ -336,9 +417,9 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
           botSprite.addChild(skillText);
           
           botSpritesRef.current.set(bot.id, botSprite);
-          app.stage.addChild(botSprite);
+          viewport.addChild(botSprite);
         });
-        console.log('Realistic bot cars created and added to stage');
+        console.log('Realistic bot cars created and added to viewport');
 
         // Define game loop function
         let frameCount = 0;
@@ -368,33 +449,33 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
           // Get current keys from the component's state
           const currentKeys = keysRef.current;
 
-          // Handle input with speed boost
+          // Handle input with speed boost - gentler physics
           const currentSpeedBoost = state.speedBoost;
           if (currentKeys['ArrowUp'] || currentKeys['KeyW']) {
-            newSpeed = Math.min(newSpeed + (0.5 * currentSpeedBoost), 5 * currentSpeedBoost);
+            newSpeed = Math.min(newSpeed + (0.2 * currentSpeedBoost), 3 * currentSpeedBoost);
           } else if (currentKeys['ArrowDown'] || currentKeys['KeyS']) {
-            newSpeed = Math.max(newSpeed - 0.5, -2);
+            newSpeed = Math.max(newSpeed - 0.3, -1.5);
           } else {
-            newSpeed *= 0.95; // Friction
+            newSpeed *= 0.92; // More friction for smoother stopping
           }
 
           if (currentKeys['ArrowLeft'] || currentKeys['KeyA']) {
-            newRotation -= 0.05 * Math.abs(newSpeed);
+            newRotation -= 0.03 * Math.abs(newSpeed); // Reduced turning sensitivity
           }
           if (currentKeys['ArrowRight'] || currentKeys['KeyD']) {
-            newRotation += 0.05 * Math.abs(newSpeed);
+            newRotation += 0.03 * Math.abs(newSpeed); // Reduced turning sensitivity
           }
 
           // Update position based on rotation and speed
           newX += Math.cos(newRotation) * newSpeed;
           newY += Math.sin(newRotation) * newSpeed;
 
-          // Keep car within track bounds (realistic F1 track)
-          newX = Math.max(130, Math.min(newX, width - 130));
-          newY = Math.max(70, Math.min(newY, height - 70));
+          // Keep car within track bounds (larger world track)  
+          newX = Math.max(230, Math.min(newX, worldWidth - 230));
+          newY = Math.max(230, Math.min(newY, worldHeight - 230));
 
-          // Check for finish line collision (at top of track)
-          if (newY <= 65 && newX >= 120 && newX <= width - 120 && !state.hasFinished) {
+          // Check for finish line collision (at top of world)
+          if (newY <= 170 && newX >= 200 && newX <= worldWidth - 200 && !state.hasFinished) {
             state.setHasFinished(true);
             state.setGameMode('finished');
             console.log('Player crossed finish line!');
@@ -418,11 +499,11 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
           });
 
           // Check for original checkpoint collision (simplified)
-          const checkpointX = width / 2;
-          const checkpointY = height / 2;
+          const checkpointX = worldWidth / 2;
+          const checkpointY = worldHeight / 2;
           const distance = Math.sqrt(Math.pow(newX - checkpointX, 2) + Math.pow(newY - checkpointY, 2));
           
-          if (distance < 50) {
+          if (distance < 60) {
             // Trigger quiz
             state.setQuizActive(true);
             state.setQuestionStartTime(Date.now());
@@ -434,8 +515,8 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
             
             const botState = { ...bot };
             
-            // Check if bot finished
-            if (botState.position.y <= 65 && botState.position.x >= 120 && botState.position.x <= width - 120) {
+            // Check if bot finished (using world coordinates)
+            if (botState.position.y <= 170 && botState.position.x >= 200 && botState.position.x <= worldWidth - 200) {
               botState.hasFinished = true;
               botState.position.speed = 0;
               state.setBots(state.bots.map(b => b.id === bot.id ? botState : b));
@@ -469,12 +550,12 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
               }
             });
             
-            // Simple AI: move towards finish line following track
-            const centerX = width / 2;
-            const targetY = 60; // Finish line
+            // Simple AI: move towards finish line following track (world coordinates)
+            const centerX = worldWidth / 2;
+            const targetY = 170; // Finish line
             
             // Follow the track by staying near center horizontally and moving up
-            const targetX = centerX + (Math.random() - 0.5) * 200; // Some variation
+            const targetX = centerX + (Math.random() - 0.5) * 300; // Some variation
             
             const dx = targetX - botState.position.x;
             const dy = targetY - botState.position.y;
@@ -518,11 +599,26 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
             }
           });
 
+          // Don't allow movement after finishing
+          if (state.hasFinished) {
+            return;
+          }
+
           // Update car sprite
           if (carSpriteRef.current) {
             carSpriteRef.current.x = newX;
             carSpriteRef.current.y = newY;
             carSpriteRef.current.rotation = newRotation;
+          }
+
+          // Make camera follow player car
+          if (viewportRef.current && carSpriteRef.current) {
+            const viewport = viewportRef.current;
+            viewport.follow(carSpriteRef.current, {
+              speed: 8,
+              radius: 50,
+              acceleration: 0.02
+            });
           }
 
           // Update store
