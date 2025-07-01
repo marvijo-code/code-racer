@@ -1,0 +1,381 @@
+/* Game Container */
+.game-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  color: white;
+  font-family: 'Arial', sans-serif;
+}
+
+.game-header {
+  padding: 1rem 2rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-header h1 {
+  margin: 0;
+  font-size: 2.5rem;
+  text-align: center;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.game-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 1rem;
+  font-size: 1.2rem;
+}
+
+.start-section {
+  text-align: center;
+  padding: 2rem;
+}
+
+.start-race-button {
+  font-size: 1.5rem;
+  padding: 1rem 2rem;
+  background: #ff6b35;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.start-race-button:hover:not(:disabled) {
+  background: #e55a2b;
+}
+
+.start-race-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Race Track */
+.race-track-container {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+  gap: 2rem;
+}
+
+.race-track {
+  border: 3px solid #333;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.race-hud {
+  background: rgba(0, 0, 0, 0.7);
+  padding: 1rem;
+  border-radius: 8px;
+  min-width: 200px;
+  height: fit-content;
+}
+
+.race-hud > div {
+  margin-bottom: 0.5rem;
+}
+
+.controls p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
+/* Quiz Overlay */
+.quiz-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.quiz-modal {
+  background: #2c3e50;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.quiz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.quiz-header h2 {
+  margin: 0;
+  color: #f39c12;
+}
+
+.timer {
+  font-size: 1.2rem;
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.question h3 {
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.topic-difficulty {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.topic {
+  background: #3498db;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.difficulty {
+  background: #e67e22;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.choice-button {
+  padding: 1rem;
+  background: #34495e;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.3s;
+}
+
+.choice-button:hover {
+  background: #4a5f7a;
+}
+
+.choice-button.selected {
+  border-color: #3498db;
+  background: #2980b9;
+}
+
+.submit-button {
+  width: 100%;
+  padding: 1rem;
+  background: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.submit-button:hover:not(:disabled) {
+  background: #229954;
+}
+
+.submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feedback {
+  text-align: center;
+  padding: 2rem;
+}
+
+.feedback.correct {
+  color: #27ae60;
+}
+
+.feedback.incorrect {
+  color: #e74c3c;
+}
+
+/* Leaderboard */
+.leaderboard {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.leaderboard-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.period-selector {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.period-button {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.period-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.period-button.active {
+  background: #3498db;
+  border-color: #2980b9;
+}
+
+.leaderboard-headers {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 80px;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px 8px 0 0;
+  font-weight: bold;
+}
+
+.leaderboard-entry {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 80px;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: center;
+}
+
+.leaderboard-entry:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.rank {
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.best-time {
+  font-family: monospace;
+  font-size: 1.1rem;
+}
+
+.completed-races {
+  text-align: center;
+}
+
+/* Controls */
+.race-controls, .spectator-controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.finish-button, .leaderboard-button, .restart-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.3s;
+}
+
+.finish-button {
+  background: #e74c3c;
+  color: white;
+}
+
+.finish-button:hover {
+  background: #c0392b;
+}
+
+.leaderboard-button {
+  background: #f39c12;
+  color: white;
+}
+
+.leaderboard-button:hover {
+  background: #d68910;
+}
+
+.restart-button {
+  background: #27ae60;
+  color: white;
+}
+
+.restart-button:hover {
+  background: #229954;
+}
+
+/* Spectator Mode */
+.spectator-mode {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.spectator-mode h2 {
+  color: #e74c3c;
+  margin-bottom: 1rem;
+}
+
+/* Error Banner */
+.error-banner {
+  background: #e74c3c;
+  color: white;
+  padding: 1rem;
+  margin: 1rem 2rem;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.error-banner button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+/* Loading and Empty States */
+.loading, .empty, .error {
+  text-align: center;
+  padding: 2rem;
+  color: #bdc3c7;
+}
+
+.error button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
