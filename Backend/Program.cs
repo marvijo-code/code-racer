@@ -39,7 +39,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000") // Updated frontend port
+        policy.WithOrigins("http://localhost:3113") // Fixed frontend port
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -89,7 +89,8 @@ using (var scope = app.Services.CreateScope())
         {
             try
             {
-                question.EmbeddingVector = await milvusService.GenerateEmbeddingAsync(question);
+                var questionText = $"{question.BodyMarkup} {question.OptionA} {question.OptionB} {question.OptionC}";
+                question.EmbeddingVector = await milvusService.GenerateEmbeddingAsync(questionText);
                 await milvusService.StoreQuestionEmbeddingAsync(question);
             }
             catch (Exception ex)

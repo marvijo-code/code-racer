@@ -9,8 +9,8 @@ Code Racer combines the excitement of racing with educational software engineeri
 ### Features
 
 - **Real-time 2D Racing**: PixiJS-powered car physics with WASD/arrow key controls
-- **Semantic Question Filtering**: Milvus vector database prevents repetitive questions
-- **Standardized Format**: All questions are multiple choice with exactly 3 options
+- **Semantic Question Filtering**: OpenAI embeddings + cosine similarity prevent repetitive questions
+- **Standardized Format**: All questions are multiple choice with exactly 3 options (A, B, C)
 - **Smart Difficulty**: Dynamic question selection based on player progress
 - **Spectator Mode**: Watch AI complete the race after 3 failed questions
 - **Live Leaderboards**: Daily, weekly, monthly, and all-time rankings
@@ -45,7 +45,7 @@ Code Racer combines the excitement of racing with educational software engineeri
    {
      "ConnectionStrings": {
        "DefaultConnection": "Data Source=gamedb.sqlite",
-       "MilvusConnection": "localhost:19530"
+       "Milvus": "localhost:19530"
      },
      "OpenAI": {
        "ApiKey": "your-openai-api-key-here"
@@ -72,7 +72,7 @@ Code Racer combines the excitement of racing with educational software engineeri
    npm install
    npm run dev
    ```
-   Frontend will be available at `http://localhost:3000`
+   Frontend will be available at `http://localhost:3113`
 
 6. **Access admin tools**
    - **Milvus Admin (Attu)**: `http://localhost:9001`
@@ -80,7 +80,7 @@ Code Racer combines the excitement of racing with educational software engineeri
 
 ## 🎯 How to Play
 
-1. **Start a Race**: Navigate to `http://localhost:3000` and click "Start Race"
+1. **Start a Race**: Navigate to `http://localhost:3113` and click "Start Race"
 2. **Control Your Car**: Use WASD or Arrow Keys to steer
    - **W/↑**: Accelerate
    - **S/↓**: Brake/Reverse
@@ -106,10 +106,11 @@ Code Racer combines the excitement of racing with educational software engineeri
 - **SignalR**: Real-time WebSocket communication
 - **ASP.NET Core Identity**: User authentication
 
-### Databases
+### Databases & AI
 - **Primary**: SQLite (development) or PostgreSQL (production)
-- **Vector**: Milvus 2.4 for semantic question similarity
+- **Vector Storage**: In-memory (development) with Milvus 2.4 planned for production
 - **Embeddings**: OpenAI text-embedding-3-small (1536 dimensions)
+- **Semantic Filtering**: Cosine similarity with 0.85 threshold prevents repetitive questions
 
 ## 🛠️ Development
 
@@ -185,15 +186,20 @@ Questions are rated 1-10 difficulty:
 {
   "ConnectionStrings": {
     "DefaultConnection": "Data Source=gamedb.sqlite",
-    "MilvusConnection": "localhost:19530"
+    "Milvus": "localhost:19530"
+  },
+  "OpenAI": {
+    "ApiKey": "your-openai-api-key-here"
   }
 }
 ```
 
 ### Frontend Configuration
-The API base URL is configured in `frontend/src/lib/api.ts`:
+The frontend runs on port 3113 and connects to the backend API:
 ```typescript
+// frontend/src/lib/api.ts
 const API_BASE_URL = 'https://localhost:8443/api/v1';
+const SIGNALR_URL = 'https://localhost:8443/raceHub';
 ```
 
 ## 🚀 Deployment

@@ -84,6 +84,19 @@
   color: #ccc;
 }
 
+.loading-track {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 800px;
+  height: 600px;
+  background: rgba(0, 0, 0, 0.1);
+  border: 3px solid #333;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  color: #ccc;
+}
+
 /* Quiz Overlay */
 .quiz-overlay {
   position: fixed;

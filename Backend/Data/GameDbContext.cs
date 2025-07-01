@@ -32,7 +32,11 @@ public class GameDbContext : IdentityDbContext<User>
             entity.Property(e => e.OptionB).IsRequired().HasMaxLength(80);
             entity.Property(e => e.OptionC).IsRequired().HasMaxLength(80);
             entity.Property(e => e.CorrectOption).IsRequired();
-            entity.Property(e => e.EmbeddingVector).HasColumnType("REAL[]");
+            entity.Property(e => e.EmbeddingVector)
+                  .HasConversion(
+                      v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                      v => v == null ? Array.Empty<float>() : System.Text.Json.JsonSerializer.Deserialize<float[]>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? Array.Empty<float>())
+                  .HasColumnType("TEXT");
             entity.HasIndex(e => new { e.Topic, e.Difficulty });
         });
 

@@ -1,147 +1,199 @@
 #pragma warning disable SKEXP0110
 
+using OpenAI.Embeddings;
 using Backend.Models;
 
 namespace Backend.Services;
 
 public class MilvusService
 {
+    private readonly EmbeddingClient _embeddingClient;
     private readonly ILogger<MilvusService> _logger;
-    private readonly bool _isEnabled;
-    private readonly string? _openAIApiKey;
+    private const int EmbeddingDimension = 1536; // OpenAI text-embedding-3-small
     private const float SimilarityThreshold = 0.85f;
+
+    // In-memory storage for development (replace with actual Milvus later)
+    private readonly Dictionary<int, float[]> _questionEmbeddings = new();
 
     public MilvusService(IConfiguration configuration, ILogger<MilvusService> logger)
     {
         _logger = logger;
         
-        _openAIApiKey = configuration["OpenAI:ApiKey"];
-        if (string.IsNullOrEmpty(_openAIApiKey))
+        // Initialize OpenAI Embedding client
+        var openAIKey = configuration["OpenAI:ApiKey"];
+        if (string.IsNullOrEmpty(openAIKey))
         {
-            _logger.LogWarning("OpenAI API key not configured. Milvus service will be disabled.");
-            _isEnabled = false;
-            return;
+            throw new InvalidOperationException("OpenAI API key not configured");
         }
-        
-        _isEnabled = true;
-        _logger.LogInformation("Milvus service initialized (simplified implementation)");
+        _embeddingClient = new EmbeddingClient("text-embedding-3-small", openAIKey);
     }
 
-    public Task InitializeCollectionAsync()
+    public async Task InitializeCollectionAsync()
     {
-        if (!_isEnabled)
-        {
-            _logger.LogInformation("Milvus service is disabled due to missing OpenAI API key");
-            return Task.CompletedTask;
-        }
-
-        _logger.LogInformation("Milvus collection initialization skipped - using simplified implementation");
-        return Task.CompletedTask;
-    }
-
-    public Task<float[]> GenerateEmbeddingAsync(Question question)
-    {
-        if (!_isEnabled)
-        {
-            return Task.FromResult(Array.Empty<float>());
-        }
-
         try
         {
-            // Placeholder implementation - in production this would call OpenAI API
-            // For now, generate a random embedding vector for demonstration
-            var random = new Random(question.QuestionId); // Deterministic based on question ID
-            var embedding = new float[1536]; // OpenAI text-embedding-3-small dimension
+            // For now, just log that we're initializing
+            // TODO: Implement actual Milvus collection creation once API is verified
+            _logger.LogInformation("Milvus service initialized (using in-memory storage for development)");
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize Milvus service");
+            throw;
+        }
+    }
+
+    public async Task<float[]> GenerateEmbeddingAsync(string text)
+    {
+        try
+        {
+            var response = await _embeddingClient.GenerateEmbeddingAsync(text);
+            var embedding = response.Value;
             
-            for (int i = 0; i < embedding.Length; i++)
+            return embedding.ToFloats().ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate embedding for text: {Text}", text);
+            throw;
+        }
+    }
+
+    public async Task<bool> IsQuestionSimilarAsync(Question question, List<int> recentQuestionIds)
+    {
+        try
+        {
+            // Generate embedding for the new question
+            var questionText = $"{question.BodyMarkup} {question.OptionA} {question.OptionB} {question.OptionC}";
+            var embedding = await GenerateEmbeddingAsync(questionText);
+
+            // Check similarity against stored embeddings (in-memory for now)
+            foreach (var (storedQuestionId, storedEmbedding) in _questionEmbeddings)
             {
-                embedding[i] = (float)(random.NextDouble() * 2.0 - 1.0); // Range [-1, 1]
-            }
-            
-            // Normalize the vector
-            var magnitude = MathF.Sqrt(embedding.Sum(x => x * x));
-            if (magnitude > 0)
-            {
-                for (int i = 0; i < embedding.Length; i++)
+                var similarity = CalculateCosineSimilarity(embedding, storedEmbedding);
+                
+                if (similarity >= SimilarityThreshold)
                 {
-                    embedding[i] /= magnitude;
+                    _logger.LogInformation(
+                        "Found similar question (similarity: {Similarity:F3}) for question: {QuestionId}",
+                        similarity, question.QuestionId);
+                    return true;
                 }
             }
 
-            _logger.LogDebug("Generated placeholder embedding for question {QuestionId}", question.QuestionId);
-            return Task.FromResult(embedding);
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate embedding for question {QuestionId}", question.QuestionId);
-            return Task.FromResult(Array.Empty<float>());
+            _logger.LogError(ex, "Failed to check question similarity for question: {QuestionId}", question.QuestionId);
+            // Return false to allow question if similarity check fails
+            return false;
         }
     }
 
-    public Task StoreQuestionEmbeddingAsync(Question question)
+    public async Task<List<int>> GetSimilarQuestionIdsAsync(List<float[]> sessionEmbeddings, string? topic = null, int? difficulty = null)
     {
-        if (!_isEnabled)
-        {
-            return Task.CompletedTask;
-        }
-
-        // For now, we'll just store the embedding in the database
-        // In a full implementation, this would also store in Milvus
-        _logger.LogDebug("Embedding stored in database for question {QuestionId}", question.QuestionId);
-        return Task.CompletedTask;
-    }
-
-    public Task<List<int>> GetSimilarQuestionIdsAsync(List<float[]> sessionEmbeddings, string? topic = null, int? difficulty = null)
-    {
-        if (!_isEnabled || !sessionEmbeddings.Any())
-        {
-            return Task.FromResult(new List<int>());
-        }
-
-        // Simplified implementation - in a full version this would query Milvus
-        // For now, we'll use basic similarity calculation
         try
         {
-            // This is a placeholder - in production you'd query Milvus
-            _logger.LogDebug("Semantic similarity search requested but using simplified implementation");
-            return Task.FromResult(new List<int>());
+            var similarQuestionIds = new List<int>();
+
+            foreach (var sessionEmbedding in sessionEmbeddings)
+            {
+                foreach (var (questionId, storedEmbedding) in _questionEmbeddings)
+                {
+                    var similarity = CalculateCosineSimilarity(sessionEmbedding, storedEmbedding);
+                    
+                    if (similarity >= SimilarityThreshold && !similarQuestionIds.Contains(questionId))
+                    {
+                        similarQuestionIds.Add(questionId);
+                        _logger.LogDebug(
+                            "Found similar question {QuestionId} with similarity: {Similarity:F3}",
+                            questionId, similarity);
+                    }
+                }
+            }
+
+            _logger.LogInformation(
+                "Found {Count} similar questions to exclude from session",
+                similarQuestionIds.Count);
+
+            return similarQuestionIds;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to search for similar questions");
-            return Task.FromResult(new List<int>());
+            _logger.LogError(ex, "Failed to get similar question IDs");
+            return new List<int>();
         }
     }
 
-    public Task<bool> IsCollectionHealthyAsync()
+    public async Task StoreQuestionEmbeddingAsync(Question question)
     {
-        return Task.FromResult(_isEnabled);
+        try
+        {
+            // Generate embedding if not already present
+            if (question.EmbeddingVector == null || question.EmbeddingVector.Length == 0)
+            {
+                var questionText = $"{question.BodyMarkup} {question.OptionA} {question.OptionB} {question.OptionC}";
+                question.EmbeddingVector = await GenerateEmbeddingAsync(questionText);
+            }
+
+            // Store in memory for now (replace with actual Milvus storage later)
+            _questionEmbeddings[question.QuestionId] = question.EmbeddingVector;
+
+            _logger.LogInformation("Stored embedding for question: {QuestionId}", question.QuestionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to store embedding for question: {QuestionId}", question.QuestionId);
+            throw;
+        }
+    }
+
+    public async Task DeleteQuestionEmbeddingAsync(int questionId)
+    {
+        try
+        {
+            // Remove from memory storage
+            _questionEmbeddings.Remove(questionId);
+
+            _logger.LogInformation("Deleted embedding for question: {QuestionId}", questionId);
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete embedding for question: {QuestionId}", questionId);
+            throw;
+        }
     }
 
     private static float CalculateCosineSimilarity(float[] vector1, float[] vector2)
     {
         if (vector1.Length != vector2.Length)
-            return 0f;
+            throw new ArgumentException("Vectors must have the same length");
 
-        float dotProduct = 0f;
-        float norm1 = 0f;
-        float norm2 = 0f;
+        float dotProduct = 0;
+        float magnitude1 = 0;
+        float magnitude2 = 0;
 
         for (int i = 0; i < vector1.Length; i++)
         {
             dotProduct += vector1[i] * vector2[i];
-            norm1 += vector1[i] * vector1[i];
-            norm2 += vector2[i] * vector2[i];
+            magnitude1 += vector1[i] * vector1[i];
+            magnitude2 += vector2[i] * vector2[i];
         }
 
-        if (norm1 == 0f || norm2 == 0f)
-            return 0f;
+        magnitude1 = (float)Math.Sqrt(magnitude1);
+        magnitude2 = (float)Math.Sqrt(magnitude2);
 
-        return dotProduct / (MathF.Sqrt(norm1) * MathF.Sqrt(norm2));
+        if (magnitude1 == 0 || magnitude2 == 0)
+            return 0;
+
+        return dotProduct / (magnitude1 * magnitude2);
     }
 
     public void Dispose()
     {
-        // Nothing to dispose in simplified implementation
+        // Nothing to dispose in the simplified version
     }
 } 

@@ -12,7 +12,7 @@ This document tracks frequently accessed and important files in the Code Racer p
 
 ### Frontend Configuration  
 - `frontend/package.json` - NPM dependencies and scripts
-- `frontend/vite.config.ts` - Vite dev server configuration (port 3000)
+- `frontend/vite.config.ts` - Vite dev server configuration (port 3113)
 - `frontend/tsconfig.json` - TypeScript configuration
 
 ### Infrastructure
@@ -88,7 +88,7 @@ This document tracks frequently accessed and important files in the Code Racer p
 
 | Service | Port | URL | Purpose |
 |---------|------|-----|---------|
-| Frontend | 3000 | http://localhost:3000 | React development server |
+| Frontend | 3113 | http://localhost:3113 | React development server |
 | Backend HTTPS | 8443 | https://localhost:8443 | API and SignalR hub |
 | Backend HTTP | 8080 | http://localhost:8080 | Alternative API access |
 | PostgreSQL | 5432 | localhost:5432 | Primary database |
