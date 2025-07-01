@@ -20,7 +20,10 @@ export const Game: React.FC = () => {
     lapTime,
     updateLapTime,
     lives,
-    resetGame
+    resetGame,
+    hasFinished,
+    speedBoost,
+    bots
   } = useGameStore();
 
   const [startTime, setStartTime] = useState<number>(0);
@@ -101,6 +104,20 @@ export const Game: React.FC = () => {
           <div className="final-results">
             <h2>Race Complete!</h2>
             <p>Your time: {formatTime(lapTime)}</p>
+            <p>Max speed boost achieved: {speedBoost.toFixed(1)}x</p>
+            
+            <div className="final-bot-standings">
+              <h3>Final Bot Standings:</h3>
+              {bots
+                .sort((a, b) => b.progress - a.progress)
+                .map((bot, index) => (
+                  <div key={bot.id} style={{color: `#${bot.color.toString(16).padStart(6, '0')}`}}>
+                    {index + 1}. {bot.name} ({bot.skillLevel}) - {(bot.progress * 100).toFixed(1)}% complete
+                  </div>
+                ))
+              }
+            </div>
+            
             <button onClick={handleRestart} className="restart-button">
               🔄 Race Again
             </button>
@@ -122,10 +139,16 @@ export const Game: React.FC = () => {
           <div className="lives-display">
             ❤️ Lives: {3 - lives}/3
           </div>
+          <div className="speed-boost-display">
+            ⚡ Speed: {speedBoost.toFixed(1)}x
+          </div>
+          <div className="bot-count">
+            🤖 Bots: {bots.length}
+          </div>
           <div className="game-mode">
-            {gameMode === 'racing' && '🏎️ Racing'}
+            {gameMode === 'racing' && (hasFinished ? '🏁 Finished!' : '🏎️ Racing')}
             {gameMode === 'spectating' && '👁️ Spectating'}
-            {gameMode === 'finished' && '🏁 Finished'}
+            {gameMode === 'finished' && '🏁 Race Complete!'}
           </div>
         </div>
         
@@ -152,7 +175,7 @@ export const Game: React.FC = () => {
 
       {currentSession && gameMode === 'racing' && (
         <>
-          <RaceTrack width={800} height={600} />
+          <RaceTrack width={900} height={800} />
           <div className="race-controls">
             <button onClick={finishRace} className="finish-button">
               🏁 Finish Race

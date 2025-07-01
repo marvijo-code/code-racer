@@ -8,6 +8,31 @@ export interface CarPosition {
   speed: number;
 }
 
+export interface BotCar {
+  id: string;
+  name: string;
+  skillLevel: 'Beginner' | 'Intermediate' | 'Expert' | 'Master';
+  position: CarPosition;
+  color: number;
+  progress: number; // 0-1, how far through the race
+  hasFinished: boolean;
+  aiPersonality: {
+    aggressiveness: number; // 0-1
+    accuracy: number; // 0-1, affects question answering
+    consistency: number; // 0-1, affects speed variation
+  };
+}
+
+export interface DifficultyCheckpoint {
+  id: string;
+  x: number;
+  y: number;
+  difficulty: number; // 1-10
+  speedBoost: number; // multiplier
+  color: number;
+  completed: boolean;
+}
+
 export interface GameState {
   // Session management
   currentSession: RaceSession | null;
@@ -21,6 +46,12 @@ export interface GameState {
   isPaused: boolean;
   lives: number;
   maxLives: number;
+  hasFinished: boolean;
+  speedBoost: number; // Current speed multiplier from difficulty checkpoints
+  
+  // Bots and AI
+  bots: BotCar[];
+  difficultyCheckpoints: DifficultyCheckpoint[];
   
   // Quiz state
   currentQuestion: Question | null;
@@ -42,6 +73,12 @@ export interface GameState {
   setRacing: (racing: boolean) => void;
   setPaused: (paused: boolean) => void;
   setLives: (lives: number) => void;
+  setHasFinished: (finished: boolean) => void;
+  setSpeedBoost: (boost: number) => void;
+  setBots: (bots: BotCar[]) => void;
+  updateBotPosition: (botId: string, position: Partial<CarPosition>) => void;
+  setDifficultyCheckpoints: (checkpoints: DifficultyCheckpoint[]) => void;
+  updateCheckpoint: (checkpointId: string, completed: boolean) => void;
   setCurrentQuestion: (question: Question | null) => void;
   setQuizActive: (active: boolean) => void;
   setQuestionStartTime: (time: number) => void;
@@ -54,10 +91,10 @@ export interface GameState {
 }
 
 const initialCarPosition: CarPosition = {
-  x: 100,
-  y: 300,
+  x: 200,
+  y: 720, // Start at bottom of taller track
   rotation: 0,
-  speed: 0,
+  speed: 1, // Default speed to 1 (slow)
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -71,6 +108,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   isPaused: false,
   lives: 3,
   maxLives: 3,
+  hasFinished: false,
+  speedBoost: 1.0,
+  bots: [],
+  difficultyCheckpoints: [],
   currentQuestion: null,
   isQuizActive: false,
   questionStartTime: 0,
@@ -90,6 +131,24 @@ export const useGameStore = create<GameState>((set, get) => ({
   setRacing: (racing) => set({ isRacing: racing }),
   setPaused: (paused) => set({ isPaused: paused }),
   setLives: (lives) => set({ lives }),
+  setHasFinished: (finished) => set({ hasFinished: finished }),
+  setSpeedBoost: (boost) => set({ speedBoost: boost }),
+  
+  setBots: (bots) => set({ bots }),
+  updateBotPosition: (botId, position) => set((state) => ({
+    bots: state.bots.map(bot => 
+      bot.id === botId 
+        ? { ...bot, position: { ...bot.position, ...position } }
+        : bot
+    )
+  })),
+  
+  setDifficultyCheckpoints: (checkpoints) => set({ difficultyCheckpoints: checkpoints }),
+  updateCheckpoint: (checkpointId, completed) => set((state) => ({
+    difficultyCheckpoints: state.difficultyCheckpoints.map(cp =>
+      cp.id === checkpointId ? { ...cp, completed } : cp
+    )
+  })),
   
   setCurrentQuestion: (question) => set({ currentQuestion: question }),
   setQuizActive: (active) => set({ isQuizActive: active }),
@@ -110,6 +169,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     isRacing: false,
     isPaused: false,
     lives: 3,
+    hasFinished: false,
+    speedBoost: 1.0,
+    bots: [],
+    difficultyCheckpoints: [],
     currentQuestion: null,
     isQuizActive: false,
     questionStartTime: 0,

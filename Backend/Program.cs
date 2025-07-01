@@ -39,7 +39,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3113") // Fixed frontend port
+        policy.WithOrigins(
+                "http://localhost:3113",    // Configured frontend port
+                "http://localhost:5173",    // Default Vite port
+                "http://127.0.0.1:3113",    // Alternative localhost
+                "http://127.0.0.1:5173"     // Alternative localhost
+              )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();

@@ -78,7 +78,9 @@ export const QuizOverlay: React.FC = () => {
         responseMs: responseTime
       });
 
-      const correctAnswerText = currentQuestion.options[currentQuestion.correctOption];
+      const correctAnswerText = currentQuestion.correctOption === 'A' ? currentQuestion.optionA :
+                               currentQuestion.correctOption === 'B' ? currentQuestion.optionB : 
+                               currentQuestion.optionC;
       setFeedback({
         show: true,
         correct: result.isCorrect,
@@ -133,9 +135,9 @@ export const QuizOverlay: React.FC = () => {
   }
 
   const choices = [
-    { key: 'A', text: currentQuestion.options.A },
-    { key: 'B', text: currentQuestion.options.B },
-    { key: 'C', text: currentQuestion.options.C }
+    { key: 'A', text: currentQuestion.optionA },
+    { key: 'B', text: currentQuestion.optionB },
+    { key: 'C', text: currentQuestion.optionC }
   ];
 
   return (
@@ -170,22 +172,15 @@ export const QuizOverlay: React.FC = () => {
                 <button
                   key={choice.key}
                   className={`choice-button ${selectedAnswer === choice.key ? 'selected' : ''}`}
-                  onClick={() => setSelectedAnswer(choice.key)}
+                  onClick={() => {
+                    setSelectedAnswer(choice.key);
+                    handleAnswerSubmit(choice.key);
+                  }}
                   disabled={isSubmitting}
                 >
                   {choice.key}. {choice.text}
                 </button>
               ))}
-            </div>
-
-            <div className="quiz-actions">
-              <button
-                className="submit-button"
-                onClick={() => handleAnswerSubmit(selectedAnswer)}
-                disabled={!selectedAnswer || isSubmitting}
-              >
-                {isSubmitting ? 'Submitting...' : 'Submit Answer'}
-              </button>
             </div>
           </>
         )}

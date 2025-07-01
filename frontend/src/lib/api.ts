@@ -5,11 +5,9 @@ export interface Question {
   topic: string;
   difficulty: number;
   bodyMarkup: string;
-  options: {
-    A: string;
-    B: string;
-    C: string;
-  };
+  optionA: string;
+  optionB: string;
+  optionC: string;
   correctOption: 'A' | 'B' | 'C';
   timeLimit: number;
 }
