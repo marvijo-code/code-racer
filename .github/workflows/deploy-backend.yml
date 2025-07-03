@@ -1,0 +1,58 @@
+name: Deploy Backend to Azure App Service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Backend/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      working-directory: ./Backend
+      run: dotnet restore
+    
+    - name: Build
+      working-directory: ./Backend
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Test
+      working-directory: ./Backend
+      run: dotnet test --no-build --configuration Release --verbosity normal
+    
+    - name: Publish
+      working-directory: ./Backend
+      run: dotnet publish --no-build --configuration Release --output ./publish
+    
+    - name: Deploy to Azure App Service
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ secrets.AZURE_BACKEND_APP_NAME }}
+        publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+        package: ./Backend/publish
+    
+    - name: Run Database Migrations
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      working-directory: ./Backend
+      run: |
+        dotnet tool install --global dotnet-ef --version 9.0.0
+        dotnet ef database update --connection "${{ secrets.AZURE_DATABASE_CONNECTION_STRING }}"
+      env:
+        ASPNETCORE_ENVIRONMENT: Production 

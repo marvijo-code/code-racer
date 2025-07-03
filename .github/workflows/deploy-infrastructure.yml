@@ -1,0 +1,83 @@
+name: Deploy Azure Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'azure-resources.bicep'
+      - 'azure-resources.parameters.json'
+      - '.github/workflows/deploy-infrastructure.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy (dev, staging, prod)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Set Environment Variables
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "ENVIRONMENT=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+        else
+          echo "ENVIRONMENT=dev" >> $GITHUB_ENV
+        fi
+        echo "RESOURCE_GROUP=rg-coderacer-${{ env.ENVIRONMENT }}" >> $GITHUB_ENV
+    
+    - name: Create Resource Group
+      run: |
+        az group create \
+          --name ${{ env.RESOURCE_GROUP }} \
+          --location "East US 2"
+    
+    - name: Deploy Bicep Template
+      run: |
+        az deployment group create \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --template-file azure-resources.bicep \
+          --parameters azure-resources.parameters.json \
+          --parameters environment=${{ env.ENVIRONMENT }} \
+          --parameters postgresqlAdminPassword='${{ secrets.POSTGRESQL_ADMIN_PASSWORD }}' \
+          --parameters openAiApiKey='${{ secrets.OPENAI_API_KEY }}' \
+          --output table
+    
+    - name: Get Deployment Outputs
+      id: deployment
+      run: |
+        OUTPUTS=$(az deployment group show \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --name azure-resources \
+          --query properties.outputs \
+          --output json)
+        
+        echo "Backend URL: $(echo $OUTPUTS | jq -r '.backendUrl.value')"
+        echo "Frontend URL: $(echo $OUTPUTS | jq -r '.frontendUrl.value')"
+        echo "PostgreSQL Server: $(echo $OUTPUTS | jq -r '.postgresqlServerName.value')"
+        echo "Key Vault: $(echo $OUTPUTS | jq -r '.keyVaultName.value')"
+        
+        echo "::set-output name=backend-url::$(echo $OUTPUTS | jq -r '.backendUrl.value')"
+        echo "::set-output name=frontend-url::$(echo $OUTPUTS | jq -r '.frontendUrl.value')"
+    
+    - name: Update GitHub Secrets
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        # Note: You'll need to manually update these secrets in your repository
+        echo "Please update the following GitHub secrets:"
+        echo "AZURE_BACKEND_URL: ${{ steps.deployment.outputs.backend-url }}"
+        echo "AZURE_FRONTEND_URL: ${{ steps.deployment.outputs.frontend-url }}" 

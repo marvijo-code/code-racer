@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "value": "coderacer"
+    },
+    "location": {
+      "value": "East US 2"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "appServicePlanSku": {
+      "value": "F1"
+    },
+    "postgresqlSku": {
+      "value": "Standard_B1s"
+    },
+    "postgresqlAdminUsername": {
+      "value": "coderacer_admin"
+    },
+    "postgresqlAdminPassword": {
+      "value": "CodeRacer2024!Secure"
+    },
+    "openAiApiKey": {
+      "value": ""
+    }
+  }
+} 

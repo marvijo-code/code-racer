@@ -14,18 +14,19 @@ export const RandomQuestions: React.FC = () => {
   const [newQuestions, setNewQuestions] = useState<Set<number>>(new Set());
   const [hasMore, setHasMore] = useState(true);
   const [loadedQuestionIds, setLoadedQuestionIds] = useState<Set<number>>(new Set());
+  const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
 
   const fetchInitialQuestions = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Fetch 3 initial questions with different topics/difficulties
+      // Fetch 3 initial questions with different topics (let backend choose difficulty)
       const questionPromises = [
-        apiClient.getRandomQuestion('JavaScript', 1),
-        apiClient.getRandomQuestion('C#', 2),
-        apiClient.getRandomQuestion('SOLID', 3),
-        apiClient.getRandomQuestion('Algorithms', 4),
+        apiClient.getRandomQuestion('JavaScript'),
+        apiClient.getRandomQuestion('C#'),
+        apiClient.getRandomQuestion('SOLID'),
+        apiClient.getRandomQuestion('Algorithms'),
         apiClient.getRandomQuestion(), // Random topic and difficulty
       ];
 
@@ -52,9 +53,13 @@ export const RandomQuestions: React.FC = () => {
         });
         setTimers(newTimers);
         
-        // After slide-in animation starts, remove "new" state
+        // After slide-in animation starts, remove "new" state and set active question
         setTimeout(() => {
           setNewQuestions(new Set());
+          // Set first question as active if no active question exists
+          if (successfulQuestions.length > 0) {
+            setActiveQuestionId(successfulQuestions[0].questionId);
+          }
         }, 100);
       }
     } catch (err) {
@@ -71,12 +76,12 @@ export const RandomQuestions: React.FC = () => {
     try {
       setLoadingMore(true);
       
-      // Fetch more questions with varied topics/difficulties
+      // Fetch more questions with varied topics (let backend choose best difficulty)
       const questionPromises = [
-        apiClient.getRandomQuestion('JavaScript', Math.floor(Math.random() * 5) + 1),
-        apiClient.getRandomQuestion('C#', Math.floor(Math.random() * 5) + 1),
-        apiClient.getRandomQuestion('SOLID', Math.floor(Math.random() * 5) + 1),
-        apiClient.getRandomQuestion('Algorithms', Math.floor(Math.random() * 5) + 1),
+        apiClient.getRandomQuestion('JavaScript'),
+        apiClient.getRandomQuestion('C#'),
+        apiClient.getRandomQuestion('SOLID'),
+        apiClient.getRandomQuestion('Algorithms'),
         apiClient.getRandomQuestion(), // Random topic and difficulty
         apiClient.getRandomQuestion(), // Random topic and difficulty
       ];
@@ -112,9 +117,16 @@ export const RandomQuestions: React.FC = () => {
           return newTimers;
         });
         
-        // After slide-in animation starts, remove "new" state
+        // After slide-in animation starts, remove "new" state and set active question if needed
         setTimeout(() => {
           setNewQuestions(new Set());
+          // Set active question if none exists
+          if (!activeQuestionId) {
+            const firstUnansweredQuestion = questions.find(q => !answeredQuestions.has(q.questionId));
+            if (firstUnansweredQuestion) {
+              setActiveQuestionId(firstUnansweredQuestion.questionId);
+            }
+          }
         }, 100);
       } else {
         // No more unique questions available
@@ -163,6 +175,9 @@ export const RandomQuestions: React.FC = () => {
     // Auto-submit with no answer (empty string)
     const newAnsweredQuestions = new Set(answeredQuestions).add(questionId);
     setAnsweredQuestions(newAnsweredQuestions);
+    
+    // Update active question to next unanswered question
+    updateActiveQuestion(questionId);
 
     // After 2 seconds, start fading the question
     setTimeout(() => {
@@ -200,39 +215,39 @@ export const RandomQuestions: React.FC = () => {
     }, 2000);
   };
 
-  // Timer countdown effect
+  // Timer countdown effect - only for active question
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimers(prev => {
-        const updated = { ...prev };
-        let hasChanges = false;
-        
-        Object.keys(updated).forEach(questionIdStr => {
-          const questionId = parseInt(questionIdStr);
-          if (!answeredQuestions.has(questionId) && !fadingQuestions.has(questionId) && !newQuestions.has(questionId)) {
-            if (updated[questionId] > 0) {
-              updated[questionId] -= 1;
-              hasChanges = true;
+      if (activeQuestionId) {
+        setTimers(prev => {
+          const updated = { ...prev };
+          
+          // Only countdown for the active question
+          if (!answeredQuestions.has(activeQuestionId) && !fadingQuestions.has(activeQuestionId) && !newQuestions.has(activeQuestionId)) {
+            if (updated[activeQuestionId] > 0) {
+              updated[activeQuestionId] -= 1;
               
               // Auto-submit when timer reaches 0
-              if (updated[questionId] === 0) {
+              if (updated[activeQuestionId] === 0) {
                 setTimeout(() => {
-                  handleTimeOut(questionId);
+                  handleTimeOut(activeQuestionId);
                 }, 100);
               }
+              
+              return updated;
             }
           }
+          
+          return prev;
         });
-        
-        return hasChanges ? updated : prev;
-      });
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [answeredQuestions, fadingQuestions, newQuestions]);
+  }, [answeredQuestions, fadingQuestions, newQuestions, activeQuestionId]);
 
   const handleAnswerSelect = (questionId: number, answer: string) => {
-    if (answeredQuestions.has(questionId) || fadingQuestions.has(questionId)) return;
+    if (answeredQuestions.has(questionId) || fadingQuestions.has(questionId) || activeQuestionId !== questionId) return;
     
     setSelectedAnswers(prev => ({
       ...prev,
@@ -243,6 +258,67 @@ export const RandomQuestions: React.FC = () => {
     handleAnswerSubmit(questionId, answer);
   };
 
+  const handleSkip = (questionId: number) => {
+    if (answeredQuestions.has(questionId) || fadingQuestions.has(questionId)) return;
+    
+    // Mark as answered (skipped)
+    const newAnsweredQuestions = new Set(answeredQuestions).add(questionId);
+    setAnsweredQuestions(newAnsweredQuestions);
+    
+    // Update active question to next unanswered question
+    updateActiveQuestion(questionId);
+
+    // After 2 seconds, start fading the question
+    setTimeout(() => {
+      setFadingQuestions(prev => new Set(prev).add(questionId));
+      
+      // After fade animation completes (0.5s), remove question from list
+      setTimeout(() => {
+        setQuestions(prev => prev.filter(q => q.questionId !== questionId));
+        setFadingQuestions(prev => {
+          const updated = new Set(prev);
+          updated.delete(questionId);
+          return updated;
+        });
+        setAnsweredQuestions(prev => {
+          const updated = new Set(prev);
+          updated.delete(questionId);
+          return updated;
+        });
+        setSelectedAnswers(prev => {
+          const updated = { ...prev };
+          delete updated[questionId];
+          return updated;
+        });
+        setTimers(prev => {
+          const updated = { ...prev };
+          delete updated[questionId];
+          return updated;
+        });
+        setLoadedQuestionIds(prev => {
+          const updated = new Set(prev);
+          updated.delete(questionId);
+          return updated;
+        });
+      }, 500);
+    }, 2000);
+  };
+
+  const updateActiveQuestion = (completedQuestionId: number) => {
+    // Find the next unanswered question
+    const nextActiveQuestion = questions.find(q => 
+      q.questionId !== completedQuestionId && 
+      !answeredQuestions.has(q.questionId) && 
+      !fadingQuestions.has(q.questionId)
+    );
+    
+    if (nextActiveQuestion) {
+      setActiveQuestionId(nextActiveQuestion.questionId);
+    } else {
+      setActiveQuestionId(null);
+    }
+  };
+
   const handleAnswerSubmit = async (questionId: number, answer?: string) => {
     const selectedAnswer = answer || selectedAnswers[questionId];
     if (!selectedAnswer) return;
@@ -250,6 +326,9 @@ export const RandomQuestions: React.FC = () => {
     // Mark question as answered
     const newAnsweredQuestions = new Set(answeredQuestions).add(questionId);
     setAnsweredQuestions(newAnsweredQuestions);
+    
+    // Update active question to next unanswered question
+    updateActiveQuestion(questionId);
 
     // After 2 seconds, start fading the question
     setTimeout(() => {
@@ -324,9 +403,10 @@ export const RandomQuestions: React.FC = () => {
           const isCorrect = selectedAnswer === question.correctOption;
           const isFading = fadingQuestions.has(question.questionId);
           const isNew = newQuestions.has(question.questionId);
+          const isActive = activeQuestionId === question.questionId;
           
           return (
-            <div key={question.questionId} className={`question-preview ${isAnswered ? 'answered' : ''} ${isFading ? 'fading' : ''} ${isNew ? 'new-question' : ''}`}>
+            <div key={question.questionId} className={`question-preview ${isAnswered ? 'answered' : ''} ${isFading ? 'fading' : ''} ${isNew ? 'new-question' : ''} ${isActive ? 'active' : ''}`}>
               <div className="question-header">
                 <div className="question-meta">
                   <span className="question-topic">{question.topic}</span>
@@ -334,9 +414,18 @@ export const RandomQuestions: React.FC = () => {
                     {'★'.repeat(question.difficulty)}
                   </span>
                 </div>
-                {!isAnswered && !isFading && (
-                  <div className={`timer ${timers[question.questionId] <= 5 && !isNew ? 'timer-warning' : ''}`}>
-                    ⏱️ {timers[question.questionId] || 15}s
+                {!isAnswered && !isFading && activeQuestionId === question.questionId && (
+                  <div className="timer-controls">
+                    <button 
+                      className="skip-button"
+                      onClick={() => handleSkip(question.questionId)}
+                      title="Skip this question"
+                    >
+                      ⏭️
+                    </button>
+                    <div className={`timer ${timers[question.questionId] <= 5 && !isNew ? 'timer-warning' : ''}`}>
+                      ⏱️ {timers[question.questionId] || 15}s
+                    </div>
                   </div>
                 )}
               </div>
@@ -354,8 +443,8 @@ export const RandomQuestions: React.FC = () => {
                   return (
                     <div 
                       key={optionLetter}
-                      className={`option ${isSelected ? 'selected' : ''} ${isAnswered ? (isCorrectOption ? 'correct' : isSelected ? 'incorrect' : '') : ''}`}
-                      onClick={() => !isAnswered && handleAnswerSelect(question.questionId, optionLetter)}
+                      className={`option ${isSelected ? 'selected' : ''} ${isAnswered ? (isCorrectOption ? 'correct' : isSelected ? 'incorrect' : '') : ''} ${!isActive && !isAnswered ? 'inactive' : ''}`}
+                      onClick={() => !isAnswered && isActive && handleAnswerSelect(question.questionId, optionLetter)}
                     >
                       <span className="option-letter">{optionLetter}</span>
                       <span className="option-text">{optionText}</span>
