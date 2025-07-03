@@ -9,6 +9,9 @@ using Backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add Local configuration file for development
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 // Add services to the container.
 builder.Services.AddDbContext<GameDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));

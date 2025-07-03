@@ -1,37 +1,37 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { useGameStore } from '../state/gameStore';
 import type { BotCar, DifficultyCheckpoint } from '../state/gameStore';
 import { uniqueNamesGenerator, adjectives, colors, animals } from 'unique-names-generator';
+import { soundManager } from '../utils/SoundManager';
 
 interface RaceTrackProps {
   width: number;
   height: number;
 }
 
-export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
+export const RaceTrack: React.FC<RaceTrackProps> = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
   const carSpriteRef = useRef<PIXI.Graphics | null>(null);
   const trackRef = useRef<PIXI.Graphics | null>(null);
-  const checkpointRef = useRef<PIXI.Graphics | null>(null);
-  const finishLineRef = useRef<PIXI.Graphics | null>(null);
+
   const botSpritesRef = useRef<Map<string, PIXI.Graphics>>(new Map());
-  const difficultyCheckpointSpritesRef = useRef<Map<string, PIXI.Graphics>>(new Map());
+  const exhaustParticlesRef = useRef<PIXI.ParticleContainer | null>(null);
+  const difficultyCheckpointSpritesRef = useRef<Map<string, PIXI.Container>>(new Map());
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const [pixiInitialized, setPixiInitialized] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
+  const [webglContextLost, setWebglContextLost] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
   
   const {
     carPosition,
     updateCarPosition,
     isRacing,
-    isPaused,
-    setQuizActive,
-    setQuestionStartTime,
-    gameMode,
     bots,
     setBots,
     updateBotPosition,
@@ -40,17 +40,122 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
     updateCheckpoint,
     speedBoost,
     setSpeedBoost,
-    hasFinished,
-    setHasFinished
   } = useGameStore();
 
-  const [keys, setKeys] = useState<{ [key: string]: boolean }>({});
+  const [hudCollapsed, setHudCollapsed] = useState<boolean>(false);
+  const [engineStarted, setEngineStarted] = useState<boolean>(false);
+  const [isBraking, setIsBraking] = useState<boolean>(false);
+
+  // WebGL context recovery function
+  const handleWebGLContextLost = (event: Event) => {
+    console.warn('WebGL context lost, attempting recovery...');
+    event.preventDefault();
+    setWebglContextLost(true);
+    setPixiInitialized(false);
+    
+    // Clean up current PIXI instance
+    if (appRef.current) {
+      appRef.current.destroy(true, true);
+      appRef.current = null;
+    }
+  };
+
+  const handleWebGLContextRestored = () => {
+    console.log('WebGL context restored, reinitializing PIXI...');
+    setWebglContextLost(false);
+    
+    // Retry initialization with a delay
+    setTimeout(() => {
+      if (retryCount < maxRetries) {
+        setRetryCount(prev => prev + 1);
+        initializePixi();
+      } else {
+        console.error('Max WebGL recovery retries reached');
+      }
+    }, 1000);
+  };
+
+  // Auto-collapse HUD on small mobile screens
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const isSmallScreen = window.innerWidth <= 480;
+      if (isSmallScreen && !hudCollapsed) {
+        setHudCollapsed(true);
+      }
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, [hudCollapsed]);
+
+  // Function to create realistic car graphics with optimized textures
+  const createRealisticCar = (bodyColor: number, isPlayer: boolean = false) => {
+    const car = new PIXI.Graphics();
+    
+    // Ensure bodyColor is valid, fallback to white if undefined
+    const safeBodyColor = bodyColor || 0xFFFFFF;
+    
+    // Car body (main rectangle)
+    car.roundRect(-15, -8, 30, 16, 3).fill({ color: safeBodyColor });
+    
+    // Car roof (darker shade)
+    const roofColor = Math.max(0, safeBodyColor - 0x222222); // Ensure valid color
+    car.roundRect(-10, -6, 20, 12, 2).fill({ color: roofColor });
+    
+    // Windshield (front)
+    car.roundRect(-14, -6, 6, 12, 1).fill({ color: 0x87CEEB });
+    
+    // Rear window
+    car.roundRect(8, -6, 6, 12, 1).fill({ color: 0x87CEEB });
+    
+    // Side windows
+    car.roundRect(-6, -7, 12, 3, 1).fill({ color: 0x87CEEB });
+    car.roundRect(-6, 4, 12, 3, 1).fill({ color: 0x87CEEB });
+    
+    // Headlights
+    car.circle(-16, -5, 2).fill({ color: 0xFFFFFF });
+    car.circle(-16, 5, 2).fill({ color: 0xFFFFFF });
+    
+    // Taillights
+    car.circle(16, -5, 1.5).fill({ color: 0xFF0000 });
+    car.circle(16, 5, 1.5).fill({ color: 0xFF0000 });
+    
+    // Wheels
+    car.circle(-8, -9, 3).fill({ color: 0x333333 });
+    car.circle(-8, 9, 3).fill({ color: 0x333333 });
+    car.circle(8, -9, 3).fill({ color: 0x333333 });
+    car.circle(8, 9, 3).fill({ color: 0x333333 });
+    
+    // Wheel rims
+    car.circle(-8, -9, 1.5).fill({ color: 0x666666 });
+    car.circle(-8, 9, 1.5).fill({ color: 0x666666 });
+    car.circle(8, -9, 1.5).fill({ color: 0x666666 });
+    car.circle(8, 9, 1.5).fill({ color: 0x666666 });
+    
+    // Player car gets special details
+    if (isPlayer) {
+      // Racing stripes
+      car.roundRect(-2, -8, 4, 16, 1).fill({ color: 0xFFFFFF });
+      // Racing number
+      car.circle(0, 0, 4).fill({ color: 0xFFFFFF });
+      // Add a subtle glow effect
+      car.circle(0, 0, 18).fill({ color: safeBodyColor, alpha: 0.3 });
+    } else {
+      // Bot car gets a simple identifier
+      car.circle(0, 0, 3).fill({ color: 0xFFFFFF });
+      // Add slight transparency to distinguish from player
+      car.alpha = 0.9;
+    }
+    
+    return car;
+  };
 
   // Generate AI bots with different skill levels
   const generateBots = (): BotCar[] => {
     const skillLevels: BotCar['skillLevel'][] = ['Beginner', 'Intermediate', 'Expert', 'Master'];
     const botColors = [0xFF6B6B, 0x4ECDC4, 0x45B7D1, 0x96CEB4, 0xFECA57];
-    const worldHeight = height * 3; // Match the world height
     
     return skillLevels.map((skillLevel, index) => {
       const randomName = uniqueNamesGenerator({
@@ -64,12 +169,12 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
         name: randomName,
         skillLevel,
         position: {
-          x: 300 + index * 50, // Spread out horizontally at start line, next to player
-          y: worldHeight - 90, // All start at bottom of world (2310)
+          x: 0, // Will be set properly in initPixi
+          y: 0, // Will be set properly in initPixi
           rotation: -Math.PI / 2, // Point upward like player
-          speed: 1, // Default speed 1
+          speed: 0, // Start stationary like player for realistic physics
         },
-        color: botColors[index],
+        color: botColors[index] || 0xFFFFFF, // Fallback to white if color is undefined
         progress: 0,
         hasFinished: false,
         aiPersonality: {
@@ -84,608 +189,524 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
   // Generate difficulty checkpoints
   const generateDifficultyCheckpoints = (): DifficultyCheckpoint[] => {
     const checkpoints: DifficultyCheckpoint[] = [];
-    const colors = [0x00FF00, 0xFFFF00, 0xFFA500, 0xFF0000, 0x800080];
-    const worldWidth = width * 2;
-    const worldHeight = height * 3;
-    
-    // Create more checkpoints scattered around the track
-    const checkpointPositions = [
-      // Right side going up
-      { x: worldWidth - 400, y: 1800, difficulty: 2 },
-      { x: worldWidth - 350, y: 1400, difficulty: 4 },
-      { x: worldWidth - 400, y: 1000, difficulty: 3 },
-      { x: worldWidth - 350, y: 600, difficulty: 6 },
-      // Top section
-      { x: worldWidth - 600, y: 400, difficulty: 5 },
-      { x: worldWidth / 2, y: 350, difficulty: 8 },
-      { x: 600, y: 400, difficulty: 7 },
-      // Left side going down
-      { x: 350, y: 600, difficulty: 4 },
-      { x: 400, y: 1000, difficulty: 6 },
-      { x: 350, y: 1400, difficulty: 3 },
-      { x: 400, y: 1800, difficulty: 5 },
-      // Bottom section
-      { x: 600, y: 2000, difficulty: 2 },
-      { x: worldWidth / 2, y: 2050, difficulty: 9 },
-      { x: worldWidth - 600, y: 2000, difficulty: 7 }
+    const colors = [
+      0xFF6B6B, // Red - Easy (1-2)
+      0xFF8E53, // Orange - Easy-Medium (2-3)
+      0xFF9F43, // Orange-Yellow - Medium (3-4)
+      0xFFD93D, // Yellow - Medium (4-5)
+      0x6BCF7F, // Light Green - Medium-Hard (5-6)
+      0x4ECDC4, // Teal - Hard (6-7)
+      0x45B7D1, // Light Blue - Hard (7-8)
+      0x96CEB4, // Mint - Very Hard (8-9)
+      0xB19CD9  // Purple - Expert (9-10)
     ];
-    
-    checkpointPositions.forEach((pos, i) => {
+
+    for (let i = 0; i < 9; i++) {
+      const difficulty = i + 1;
+      const speedBoost = 1.0 + (difficulty * 0.05); // 1.05x to 1.45x boost
+      
       checkpoints.push({
         id: `checkpoint_${i}`,
-        x: pos.x,
-        y: pos.y,
-        difficulty: pos.difficulty,
-        speedBoost: 1 + (pos.difficulty * 0.1), // 1.1x to 2.0x speed boost
-        color: colors[Math.floor((pos.difficulty - 1) / 2)],
-        completed: false
+        x: 300 + (i % 2) * 200 + Math.random() * 100, // Alternate left/right with variation
+        y: 1500 - (i * 150), // Spread vertically up the track
+        difficulty,
+        completed: false,
+        speedBoost,
+        color: colors[i]
       });
-    });
+    }
     
     return checkpoints;
   };
 
-  // Initialize bots and checkpoints when game starts
-  useEffect(() => {
-    if (isRacing && bots.length === 0) {
-      setBots(generateBots());
+  // Separated PIXI initialization function for reuse
+  const initializePixi = async () => {
+    if (!canvasReady) return;
+
+    const container = canvasRef.current;
+    if (!container) return;
+
+    try {
+      console.log('Starting PIXI initialization...');
+      
+      // Create new PIXI application with WebGL optimizations
+      const app = new PIXI.Application();
+      
+      // Enhanced initialization with WebGL context recovery
+      await app.init({
+        resizeTo: container,
+        backgroundColor: '#228B22',
+        antialias: true,
+        powerPreference: 'high-performance', // Request high-performance GPU
+        premultipliedAlpha: false, // Fix alpha-premult warning
+        preserveDrawingBuffer: false, // Optimize memory usage
+        clearBeforeRender: true,
+        resolution: Math.min(window.devicePixelRatio, 2), // Limit resolution for performance
+        autoDensity: true
+      });
+
+      console.log('PIXI app initialized successfully');
+
+      // Clear container and add canvas
+      container.innerHTML = '';
+      container.appendChild(app.canvas);
+      appRef.current = app;
+      
+      // Add WebGL context event listeners to the canvas
+      const canvas = app.canvas as HTMLCanvasElement;
+      canvas.addEventListener('webglcontextlost', handleWebGLContextLost, false);
+      canvas.addEventListener('webglcontextrestored', handleWebGLContextRestored, false);
+      
+      console.log('Canvas added to DOM with WebGL context handlers');
+
+      const worldWidth = container.clientWidth * 2;
+      const worldHeight = container.clientHeight * 3;
+
+      const viewport = new Viewport({
+        screenWidth: container.clientWidth,
+        screenHeight: container.clientHeight,
+        worldWidth,
+        worldHeight,
+        events: app.renderer.events,
+      });
+
+      app.stage.addChild(viewport);
+      viewportRef.current = viewport;
+
+      const isMobileDevice = container.clientWidth <= 768;
+      viewport.drag().pinch().wheel().decelerate({ friction: 0.95 });
+
+      // --- Create Professional Vertical Race Track ---
+      const track = new PIXI.Graphics();
+      
+      // Track background (asphalt gray)
+      track.roundRect(200, 200, worldWidth - 400, worldHeight - 400, 20).fill({ color: 0x2a2a2a });
+      
+      // Track borders (white lines)
+      track.roundRect(200, 200, worldWidth - 400, worldHeight - 400, 20).stroke({ width: 8, color: 0xffffff });
+      
+      // Center dividing lines (dashed yellow lines down the middle)
+      const centerX = worldWidth / 2;
+      const dashLength = 40;
+      const gapLength = 30;
+      const lineWidth = 4;
+      
+      for (let y = 220; y < worldHeight - 220; y += dashLength + gapLength) {
+        track.roundRect(centerX - lineWidth/2, y, lineWidth, Math.min(dashLength, worldHeight - 220 - y), 2).fill({ color: 0xffff00 });
+      }
+      
+      // Start/Finish line at bottom (checkered pattern)
+      const finishY = worldHeight - 250;
+      const squareSize = 20;
+      for (let x = 220; x < worldWidth - 220; x += squareSize) {
+        for (let i = 0; i < 2; i++) {
+          const color = ((x - 220) / squareSize + i) % 2 === 0 ? 0xffffff : 0x000000;
+          track.roundRect(x, finishY + i * squareSize, squareSize, squareSize, 0).fill({ color });
+        }
+      }
+      
+      viewport.addChild(track);
+      trackRef.current = track;
+
+      // Create realistic player car
+      const car = createRealisticCar(0x0066FF, true);
+      
+      // Position car at the bottom center of the track (within track boundaries)
+      const trackMargin = 250; // Distance from track edge
+      car.x = worldWidth / 2; // Center horizontally
+      car.y = worldHeight - trackMargin; // Near bottom, within track
+      car.rotation = -Math.PI / 2; // Point upward
+      
+      viewport.addChild(car);
+      carSpriteRef.current = car;
+
+      // Configure viewport following with better settings
+      viewport.follow(car, { 
+        speed: 12, // Faster following
+        acceleration: 0.08, // Smoother acceleration
+        radius: 100 // Larger follow radius for smoother movement
+      });
+      
+      // Center the viewport on the car initially
+      viewport.moveCenter(car.x, car.y);
+      
+      if (isMobileDevice) {
+        viewport.setZoom(0.6, true); // Zoom out more on mobile for better view
+      } else {
+        viewport.setZoom(0.8, true); // Slightly zoomed out on desktop
+      }
+      
+      // Update the game store with correct initial position
+      updateCarPosition({
+        x: car.x,
+        y: car.y,
+        rotation: car.rotation,
+        speed: 0
+      });
+
+      // Create bot cars (if bots exist in game state)
+      bots.forEach((bot, index) => {
+        const botCar = createRealisticCar(bot.color, false);
+        
+        // Position bots near the player car but spread out horizontally
+        const trackMargin = 250; // Distance from track edge
+        botCar.x = (worldWidth / 2) + (index - 2) * 80; // Spread around center with more spacing
+        botCar.y = worldHeight - trackMargin + (index * 15); // Slightly staggered
+        botCar.rotation = -Math.PI / 2; // Point upward like player
+        
+        viewport.addChild(botCar);
+        botSpritesRef.current.set(bot.id, botCar);
+        
+        // Update bot position in store
+        updateBotPosition(bot.id, {
+          x: botCar.x,
+          y: botCar.y,
+          rotation: botCar.rotation,
+          speed: 0
+        });
+      });
+      
+      // If no bots exist yet, create them
+      if (bots.length === 0) {
+        const newBots = generateBots();
+        setBots(newBots);
+        
+        // Create bot sprites for the newly generated bots
+        newBots.forEach((bot, index) => {
+          const botCar = createRealisticCar(bot.color, false);
+          
+          const trackMargin = 250;
+          botCar.x = (worldWidth / 2) + (index - 2) * 80;
+          botCar.y = worldHeight - trackMargin + (index * 15);
+          botCar.rotation = -Math.PI / 2;
+          
+          viewport.addChild(botCar);
+          botSpritesRef.current.set(bot.id, botCar);
+        });
+      }
+
+      // Create professional difficulty checkpoints with numbers
+      difficultyCheckpoints.forEach(checkpoint => {
+        const checkpointContainer = new PIXI.Container();
+        
+        // Balloon shape (circle with pointer at bottom)
+        const balloon = new PIXI.Graphics();
+        
+        // Main balloon circle
+        balloon.circle(0, -10, 30).fill({ color: checkpoint.color });
+        balloon.circle(0, -10, 28).stroke({ width: 3, color: 0xffffff });
+        
+        // Balloon pointer (triangle at bottom)
+        balloon.moveTo(-8, 15).lineTo(8, 15).lineTo(0, 25).lineTo(-8, 15).fill({ color: checkpoint.color });
+        balloon.moveTo(-8, 15).lineTo(8, 15).lineTo(0, 25).lineTo(-8, 15).stroke({ width: 2, color: 0xffffff });
+        
+        // Add difficulty number text
+        const difficultyText = new PIXI.Text({
+          text: checkpoint.difficulty.toString(),
+          style: {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 24,
+            fontWeight: 'bold',
+            fill: 0xffffff,
+            align: 'center'
+          }
+        });
+        difficultyText.anchor.set(0.5);
+        difficultyText.x = 0;
+        difficultyText.y = -10;
+        
+        checkpointContainer.addChild(balloon);
+        checkpointContainer.addChild(difficultyText);
+        
+        checkpointContainer.x = checkpoint.x;
+        checkpointContainer.y = checkpoint.y;
+        viewport.addChild(checkpointContainer);
+        difficultyCheckpointSpritesRef.current.set(checkpoint.id, checkpointContainer);
+      });
+
+      // Create optimized exhaust particle system
+      const exhaustParticles = new PIXI.ParticleContainer();
+      viewport.addChild(exhaustParticles);
+      exhaustParticlesRef.current = exhaustParticles;
+      
+      // Define track boundaries once (accessible in game loop)
+      const carMargin = 30; // Half car width/height plus some buffer
+      const trackBounds = {
+        left: 200 + carMargin,
+        right: worldWidth - 200 - carMargin,
+        top: 200 + carMargin,
+        bottom: worldHeight - 200 - carMargin
+      };
+
+      console.log('PIXI initialization completed successfully!');
+      setPixiInitialized(true);
+      setRetryCount(0); // Reset retry count on successful initialization
+
+      // --- Game Loop ---
+      app.ticker.add(() => {
+        const state = useGameStore.getState();
+        if (!state.isRacing || !carSpriteRef.current) return;
+        
+        let newSpeed = state.carPosition.speed;
+        const maxSpeed = 15; // Increased maximum speed for better movement
+        const acceleration = 0.5; // Much higher acceleration for better responsiveness
+        const deceleration = 0.8; // Increased braking for better control
+        const friction = 0.85; // Slightly increased friction for better feel
+        
+        // Start engine sound when racing begins
+        if (!engineStarted) {
+          soundManager.startEngine();
+          setEngineStarted(true);
+        }
+        
+        // Speed control with realistic physics
+        const isAccelerating = keysRef.current['ArrowUp'] || keysRef.current['KeyW'];
+        const isBrakingNow = keysRef.current['ArrowDown'] || keysRef.current['KeyS'];
+        
+        if (isAccelerating) {
+          newSpeed = Math.min(maxSpeed, newSpeed + acceleration);
+        } else if (isBrakingNow) {
+          newSpeed = Math.max(-maxSpeed * 0.5, newSpeed - deceleration); // Reverse at half max speed
+          
+          // Play brake sound if just started braking and moving forward
+          if (!isBraking && Math.abs(newSpeed) > 0.5) {
+            soundManager.playBrakeSound();
+            setIsBraking(true);
+          }
+        } else {
+          newSpeed *= friction; // Natural friction when no input
+          setIsBraking(false);
+        }
+        
+        // Update engine sound based on speed
+        soundManager.updateEngineSound(newSpeed, maxSpeed);
+        
+        // Speed-dependent turning for more realistic handling
+        const currentSpeedRatio = Math.abs(newSpeed) / maxSpeed;
+        const baseTurningSpeed = 0.04; // Increased for better responsiveness
+        const turningSpeed = baseTurningSpeed * (0.5 + 0.5 * currentSpeedRatio); // Better turning at all speeds
+        
+        if (keysRef.current['ArrowLeft'] || keysRef.current['KeyA']) {
+          carSpriteRef.current.rotation -= turningSpeed;
+        }
+        if (keysRef.current['ArrowRight'] || keysRef.current['KeyD']) {
+          carSpriteRef.current.rotation += turningSpeed;
+        }
+
+        // Apply speed boost from checkpoints
+        const effectiveSpeed = newSpeed * state.speedBoost;
+        
+        // Calculate new position
+        const newX = carSpriteRef.current.x + Math.cos(carSpriteRef.current.rotation) * effectiveSpeed;
+        const newY = carSpriteRef.current.y + Math.sin(carSpriteRef.current.rotation) * effectiveSpeed;
+        
+        // Boundary checking
+        const constrainedX = Math.max(trackBounds.left, Math.min(trackBounds.right, newX));
+        const constrainedY = Math.max(trackBounds.top, Math.min(trackBounds.bottom, newY));
+        
+        carSpriteRef.current.x = constrainedX;
+        carSpriteRef.current.y = constrainedY;
+        
+        // If hitting a boundary, reduce speed for realistic collision
+        if (newX !== constrainedX || newY !== constrainedY) {
+          newSpeed *= 0.3; // Reduce speed when hitting walls
+          soundManager.playBrakeSound(); // Play collision sound
+        }
+        
+        // Generate optimized exhaust particles when accelerating
+        if (isAccelerating && Math.abs(newSpeed) > 0.5 && exhaustParticlesRef.current) {
+          // Limit particle generation to prevent memory issues
+          if (exhaustParticlesRef.current.children.length < 500) {
+            // Create exhaust particle behind the car
+            const exhaustX = carSpriteRef.current.x - Math.cos(carSpriteRef.current.rotation) * 20;
+            const exhaustY = carSpriteRef.current.y - Math.sin(carSpriteRef.current.rotation) * 20;
+            
+            for (let i = 0; i < 2; i++) {
+              const particle = new PIXI.Graphics();
+              const size = 2 + Math.random() * 3;
+              const alpha = 0.3 + Math.random() * 0.4;
+              
+              particle.circle(0, 0, size).fill({ color: 0x666666, alpha });
+              particle.x = exhaustX + (Math.random() - 0.5) * 10;
+              particle.y = exhaustY + (Math.random() - 0.5) * 10;
+              
+              // Add random velocity away from car
+              const particleVelX = -Math.cos(carSpriteRef.current.rotation) * (1 + Math.random());
+              const particleVelY = -Math.sin(carSpriteRef.current.rotation) * (1 + Math.random());
+              
+              exhaustParticlesRef.current.addChild(particle);
+              
+              // Animate particle with cleanup
+              const startTime = Date.now();
+              const animateParticle = () => {
+                const elapsed = Date.now() - startTime;
+                if (elapsed > 1000 || !exhaustParticlesRef.current || !particle.parent) {
+                  if (particle.parent) {
+                    particle.parent.removeChild(particle);
+                    particle.destroy();
+                  }
+                  return;
+                }
+                
+                particle.x += particleVelX;
+                particle.y += particleVelY;
+                particle.alpha = Math.max(0, alpha * (1 - elapsed / 1000));
+                
+                requestAnimationFrame(animateParticle);
+              };
+              
+              animateParticle();
+            }
+          }
+        }
+        
+        // Check checkpoint collisions
+        state.difficultyCheckpoints.forEach(checkpoint => {
+          if (!checkpoint.completed) {
+            const distance = Math.sqrt(
+              Math.pow(carSpriteRef.current!.x - checkpoint.x, 2) + 
+              Math.pow(carSpriteRef.current!.y - checkpoint.y, 2)
+            );
+            
+            // Collision radius of ~40 pixels
+            if (distance < 40) {
+              // Play checkpoint sound
+              soundManager.playCheckpointSound();
+              
+              // Apply speed boost
+              const newBoost = checkpoint.speedBoost;
+              setSpeedBoost(newBoost);
+              
+              // Play boost sound if significant boost
+              if (newBoost > 1.3) {
+                soundManager.playBoostSound();
+              }
+              
+              // Mark checkpoint as completed
+              updateCheckpoint(checkpoint.id, true);
+              
+              // Start boost decay after 3 seconds
+              setTimeout(() => {
+                const currentState = useGameStore.getState();
+                if (currentState.speedBoost === newBoost) {
+                  setSpeedBoost(Math.max(1.0, newBoost - 0.1));
+                }
+              }, 3000);
+            }
+          }
+        });
+        
+        updateCarPosition({
+          x: carSpriteRef.current.x,
+          y: carSpriteRef.current.y,
+          rotation: carSpriteRef.current.rotation,
+          speed: newSpeed,
+        });
+
+        // Update bot AI movement
+        state.bots.forEach(bot => {
+          const botSprite = botSpritesRef.current.get(bot.id);
+          if (!botSprite) return;
+
+          // Simple AI: move towards finish line (top of track) with some variation
+          const botSpeed = 2 + (bot.aiPersonality.aggressiveness * 3); // 2-5 speed based on personality
+          
+          // Add some random movement for realism
+          const randomOffset = (Math.random() - 0.5) * bot.aiPersonality.consistency * 20;
+          
+          // Move bot upward with slight horizontal variation
+          botSprite.y -= botSpeed;
+          botSprite.x += randomOffset;
+          
+          // Keep bots within track bounds
+          const botTrackBounds = {
+            left: 230,
+            right: worldWidth - 230,
+            top: 230,
+            bottom: worldHeight - 230
+          };
+          
+          botSprite.x = Math.max(botTrackBounds.left, Math.min(botTrackBounds.right, botSprite.x));
+          botSprite.y = Math.max(botTrackBounds.top, Math.min(botTrackBounds.bottom, botSprite.y));
+          
+          // Calculate progress (0 = start, 1 = finish)
+          const startY = worldHeight - 250;
+          const finishY = 300;
+          const progress = Math.max(0, Math.min(1, (startY - botSprite.y) / (startY - finishY)));
+          
+          // Update bot position in store
+          updateBotPosition(bot.id, {
+            x: botSprite.x,
+            y: botSprite.y,
+            rotation: botSprite.rotation,
+            speed: botSpeed
+          });
+          
+          // Update progress
+          const updatedBot = { ...bot, progress };
+          if (progress >= 1 && !bot.hasFinished) {
+            updatedBot.hasFinished = true;
+          }
+        });
+      });
+    } catch (error) {
+      console.error('PIXI initialization failed:', error);
+      setPixiInitialized(false);
+      
+      // Attempt recovery if not at max retries
+      if (retryCount < maxRetries) {
+        console.log(`Retrying PIXI initialization (${retryCount + 1}/${maxRetries})...`);
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          initializePixi();
+        }, 2000);
+      }
     }
+  };
+
+  useEffect(() => {
+    // Checkpoints are now generated in PIXI initialization
     if (isRacing && difficultyCheckpoints.length === 0) {
       setDifficultyCheckpoints(generateDifficultyCheckpoints());
     }
-  }, [isRacing, bots.length, difficultyCheckpoints.length, setBots, setDifficultyCheckpoints]);
+  }, [isRacing, difficultyCheckpoints.length, setDifficultyCheckpoints]);
 
-  // Check if canvas ref is ready
   useEffect(() => {
-    console.log('Checking canvas ref availability...');
     if (canvasRef.current) {
-      console.log('Canvas ref is available, setting canvasReady to true');
       setCanvasReady(true);
-    } else {
-      console.log('Canvas ref not yet available');
-      // Try again after a short delay
-      const timer = setTimeout(() => {
-        if (canvasRef.current) {
-          console.log('Canvas ref available after delay');
-          setCanvasReady(true);
-        }
-      }, 100);
-      return () => clearTimeout(timer);
     }
   }, []);
 
-  // Initialize PIXI only when canvas is ready
   useEffect(() => {
-    if (!canvasReady || !canvasRef.current) {
-      console.log('Canvas not ready for PIXI initialization');
-      return;
+    if (canvasReady && !webglContextLost) {
+      initializePixi();
     }
 
-    let mounted = true;
-    console.log('Starting PIXI initialization...');
-
-    const initPixi = async () => {
-      try {
-        console.log('Creating PIXI Application...');
-        // Initialize PIXI Application
-        const app = new PIXI.Application();
-        
-        console.log('Initializing PIXI Application...');
-        await app.init({
-          width,
-          height,
-          backgroundColor: '#228B22', // Green background for grass
-          antialias: true,
-        });
-
-        console.log('PIXI Application initialized successfully');
-
-        // Check if component is still mounted
-        if (!mounted || !canvasRef.current) {
-          console.log('Component unmounted, destroying app');
-          app.destroy();
-          return;
-        }
-
-        appRef.current = app;
-        canvasRef.current.appendChild(app.canvas);
-        console.log('Canvas added to DOM');
-
-        // Create viewport for camera following
-        const worldWidth = width * 2; // Make world larger than screen
-        const worldHeight = height * 3; // Much taller world
-        const viewport = new Viewport({
-          screenWidth: width,
-          screenHeight: height,
-          worldWidth: worldWidth,
-          worldHeight: worldHeight,
-          events: app.renderer.events
-        });
-
-        // Add viewport to stage
-        app.stage.addChild(viewport);
-        viewportRef.current = viewport;
-        
-        // Enable camera following and bounds
-        viewport
-          .drag()
-          .pinch()
-          .wheel()
-          .decelerate()
-          .clampZoom({
-            minScale: 0.5,
-            maxScale: 2
-          });
-
-        console.log('Viewport created and configured');
-
-        // Create F1-style track with realistic curves (larger world)
-        const track = new PIXI.Graphics();
-        
-        // Outer track boundary - larger oval track
-        track.roundRect(100, 100, worldWidth - 200, worldHeight - 200, 50);
-        track.stroke({ width: 30, color: 0x444444 });
-        
-        // Inner track boundary  
-        track.roundRect(200, 200, worldWidth - 400, worldHeight - 400, 40);
-        track.stroke({ width: 30, color: 0x444444 });
-        
-        // Start/finish line area (at bottom of world)
-        track.rect(200, worldHeight - 300, worldWidth - 400, 150);
-        track.fill({ color: 0x666666, alpha: 0.3 });
-        
-        // Add center line markings along the track
-        const centerX = worldWidth / 2;
-        for (let y = 120; y < worldHeight - 120; y += 60) {
-          track.rect(centerX - 4, y, 8, 30);
-          track.fill({ color: 0xFFFFFF });
-        }
-        
-        // Add many direction arrows around the track for guidance
-        const arrowPositions = [
-          // Bottom straight - going up
-          { x: worldWidth / 2, y: worldHeight - 400, rotation: -Math.PI / 2 },
-          { x: worldWidth / 2, y: worldHeight - 600, rotation: -Math.PI / 2 },
-          { x: worldWidth / 2, y: worldHeight - 800, rotation: -Math.PI / 2 },
-          // Right side going up
-          { x: worldWidth - 300, y: 1600, rotation: -Math.PI / 2 },
-          { x: worldWidth - 300, y: 1200, rotation: -Math.PI / 2 },
-          { x: worldWidth - 300, y: 800, rotation: -Math.PI / 2 },
-          // Right turn at top
-          { x: worldWidth - 400, y: 400, rotation: -Math.PI / 4 },
-          { x: worldWidth - 600, y: 300, rotation: Math.PI },
-          // Top straight - going left
-          { x: worldWidth - 800, y: 250, rotation: Math.PI },
-          { x: worldWidth / 2, y: 250, rotation: Math.PI },
-          { x: 800, y: 250, rotation: Math.PI },
-          // Left turn at top
-          { x: 400, y: 300, rotation: 3 * Math.PI / 4 },
-          { x: 300, y: 400, rotation: Math.PI / 2 },
-          // Left side going down
-          { x: 300, y: 800, rotation: Math.PI / 2 },
-          { x: 300, y: 1200, rotation: Math.PI / 2 },
-          { x: 300, y: 1600, rotation: Math.PI / 2 },
-          // Left turn at bottom
-          { x: 400, y: worldHeight - 400, rotation: Math.PI / 4 },
-          { x: 600, y: worldHeight - 300, rotation: 0 },
-          // Bottom straight - going right
-          { x: 800, y: worldHeight - 250, rotation: 0 },
-          { x: worldWidth / 2, y: worldHeight - 250, rotation: 0 },
-          { x: worldWidth - 800, y: worldHeight - 250, rotation: 0 },
-          // Right turn at bottom
-          { x: worldWidth - 600, y: worldHeight - 300, rotation: -Math.PI / 4 },
-          { x: worldWidth - 400, y: worldHeight - 400, rotation: -Math.PI / 2 }
-        ];
-        
-        arrowPositions.forEach(arrow => {
-          const arrowSprite = new PIXI.Graphics();
-          arrowSprite.moveTo(0, -15);
-          arrowSprite.lineTo(20, 0);
-          arrowSprite.lineTo(0, 15);
-          arrowSprite.lineTo(8, 0);
-          arrowSprite.closePath();
-          arrowSprite.fill({ color: 0x00FF00 });
-          arrowSprite.x = arrow.x;
-          arrowSprite.y = arrow.y;
-          arrowSprite.rotation = arrow.rotation;
-          viewport.addChild(arrowSprite);
-        });
-        
-        trackRef.current = track;
-        viewport.addChild(track);
-        console.log('Large F1-style track created and added to viewport');
-
-        // Create finish line at the top of world
-        const finishLine = new PIXI.Graphics();
-        finishLine.rect(200, 150, worldWidth - 400, 20);
-        finishLine.fill({ color: 0x000000 });
-        // Add checkered pattern
-        for (let i = 0; i < (worldWidth - 400) / 30; i++) {
-          if (i % 2 === 0) {
-            finishLine.rect(200 + i * 30, 150, 30, 20);
-            finishLine.fill({ color: 0xFFFFFF });
-          }
-        }
-        
-        // Add "FINISH" text
-        const finishText = new PIXI.Text({
-          text: 'FINISH',
-          style: {
-            fontSize: 32,
-            fill: 0xFFFFFF,
-            fontWeight: 'bold'
-          }
-        });
-        finishText.anchor.set(0.5);
-        finishText.x = worldWidth / 2;
-        finishText.y = 120;
-        viewport.addChild(finishText);
-        
-        finishLineRef.current = finishLine;
-        viewport.addChild(finishLine);
-        console.log('Finish line created and added to viewport');
-
-        // Create checkpoint (mid-track)
-        const checkpoint = new PIXI.Graphics();
-        checkpoint.rect(worldWidth / 2 - 30, worldHeight / 2 - 60, 60, 120);
-        checkpoint.fill({ color: 0xFF0000, alpha: 0.5 });
-        checkpointRef.current = checkpoint;
-        viewport.addChild(checkpoint);
-        console.log('Checkpoint created and added to viewport');
-
-        // Create realistic player car
-        const car = new PIXI.Graphics();
-        // Car body
-        car.roundRect(-12, -6, 24, 12, 2);
-        car.fill({ color: 0x0000FF });
-        // Car front
-        car.roundRect(-12, -4, 4, 8, 1);
-        car.fill({ color: 0x000088 });
-        // Car rear spoiler
-        car.rect(8, -3, 4, 6);
-        car.fill({ color: 0x000088 });
-        // Windshield
-        car.roundRect(-6, -3, 8, 6, 1);
-        car.fill({ color: 0x87CEEB, alpha: 0.7 });
-        
-        car.x = carPosition.x;
-        car.y = carPosition.y;
-        car.rotation = carPosition.rotation;
-        
-        carSpriteRef.current = car;
-        viewport.addChild(car);
-        console.log('Realistic player car created and added to viewport');
-
-        // Create difficulty checkpoints
-        const state = useGameStore.getState();
-        state.difficultyCheckpoints.forEach(checkpoint => {
-          const checkpointSprite = new PIXI.Graphics();
-          checkpointSprite.circle(0, 0, 25);
-          checkpointSprite.fill({ color: checkpoint.color, alpha: 0.7 });
-          checkpointSprite.x = checkpoint.x;
-          checkpointSprite.y = checkpoint.y;
-          
-          // Add difficulty text
-          const text = new PIXI.Text({
-            text: checkpoint.difficulty.toString(),
-            style: {
-              fontSize: 16,
-              fill: 0xFFFFFF,
-              fontWeight: 'bold'
-            }
-          });
-          text.anchor.set(0.5);
-          checkpointSprite.addChild(text);
-          
-          difficultyCheckpointSpritesRef.current.set(checkpoint.id, checkpointSprite);
-          viewport.addChild(checkpointSprite);
-        });
-        console.log('Difficulty checkpoints created and added to viewport');
-
-        // Create realistic bot cars
-        state.bots.forEach(bot => {
-          const botSprite = new PIXI.Graphics();
-          // Bot car body
-          botSprite.roundRect(-12, -6, 24, 12, 2);
-          botSprite.fill({ color: bot.color });
-          // Bot car front
-          botSprite.roundRect(-12, -4, 4, 8, 1);
-          botSprite.fill({ color: bot.color, alpha: 0.8 });
-          // Bot car rear spoiler
-          botSprite.rect(8, -3, 4, 6);
-          botSprite.fill({ color: bot.color, alpha: 0.8 });
-          // Bot windshield
-          botSprite.roundRect(-6, -3, 8, 6, 1);
-          botSprite.fill({ color: 0x87CEEB, alpha: 0.5 });
-          
-          botSprite.x = bot.position.x;
-          botSprite.y = bot.position.y;
-          botSprite.rotation = bot.position.rotation;
-          
-          // Add skill level text above bot
-          const skillText = new PIXI.Text({
-            text: bot.skillLevel.charAt(0), // Just first letter to save space
-            style: {
-              fontSize: 12,
-              fill: 0xFFFFFF,
-              fontWeight: 'bold'
-            }
-          });
-          skillText.anchor.set(0.5, 1);
-          skillText.x = 0;
-          skillText.y = -18;
-          botSprite.addChild(skillText);
-          
-          botSpritesRef.current.set(bot.id, botSprite);
-          viewport.addChild(botSprite);
-        });
-        console.log('Realistic bot cars created and added to viewport');
-
-        // Define game loop function
-        let frameCount = 0;
-        const gameLoop = () => {
-          frameCount++;
-          if (frameCount % 60 === 0) { // Log every 60 frames (roughly once per second)
-            console.log('Game loop running, frame:', frameCount);
-          }
-          
-          if (!appRef.current) return;
-          
-          const state = useGameStore.getState();
-          if (!state.isRacing || state.isPaused || state.gameMode !== 'racing') {
-            if (frameCount % 60 === 0) {
-              console.log('Game loop paused - isRacing:', state.isRacing, 'isPaused:', state.isPaused, 'gameMode:', state.gameMode);
-            }
-            return;
-          }
-
-          const currentCarPosition = state.carPosition;
-          
-          let newX = currentCarPosition.x;
-          let newY = currentCarPosition.y;
-          let newRotation = currentCarPosition.rotation;
-          let newSpeed = currentCarPosition.speed;
-
-          // Get current keys from the component's state
-          const currentKeys = keysRef.current;
-
-          // Handle input with speed boost - gentler physics
-          const currentSpeedBoost = state.speedBoost;
-          if (currentKeys['ArrowUp'] || currentKeys['KeyW']) {
-            newSpeed = Math.min(newSpeed + (0.2 * currentSpeedBoost), 3 * currentSpeedBoost);
-          } else if (currentKeys['ArrowDown'] || currentKeys['KeyS']) {
-            newSpeed = Math.max(newSpeed - 0.3, -1.5);
-          } else {
-            newSpeed *= 0.92; // More friction for smoother stopping
-          }
-
-          if (currentKeys['ArrowLeft'] || currentKeys['KeyA']) {
-            newRotation -= 0.03 * Math.abs(newSpeed); // Reduced turning sensitivity
-          }
-          if (currentKeys['ArrowRight'] || currentKeys['KeyD']) {
-            newRotation += 0.03 * Math.abs(newSpeed); // Reduced turning sensitivity
-          }
-
-          // Update position based on rotation and speed
-          newX += Math.cos(newRotation) * newSpeed;
-          newY += Math.sin(newRotation) * newSpeed;
-
-          // Keep car within track bounds (larger world track)  
-          newX = Math.max(230, Math.min(newX, worldWidth - 230));
-          newY = Math.max(230, Math.min(newY, worldHeight - 230));
-
-          // Check for finish line collision (at top of world)
-          if (newY <= 170 && newX >= 200 && newX <= worldWidth - 200 && !state.hasFinished) {
-            state.setHasFinished(true);
-            state.setGameMode('finished');
-            console.log('Player crossed finish line!');
-          }
-
-          // Check for difficulty checkpoint collisions
-          state.difficultyCheckpoints.forEach(checkpoint => {
-            if (!checkpoint.completed) {
-              const distance = Math.sqrt(Math.pow(newX - checkpoint.x, 2) + Math.pow(newY - checkpoint.y, 2));
-              if (distance < 30) {
-                // Apply speed boost
-                state.setSpeedBoost(checkpoint.speedBoost);
-                state.updateCheckpoint(checkpoint.id, true);
-                
-                // Trigger quiz based on difficulty
-                state.setQuizActive(true);
-                state.setQuestionStartTime(Date.now());
-                console.log(`Hit difficulty checkpoint ${checkpoint.difficulty}, speed boost: ${checkpoint.speedBoost}x`);
-              }
-            }
-          });
-
-          // Check for original checkpoint collision (simplified)
-          const checkpointX = worldWidth / 2;
-          const checkpointY = worldHeight / 2;
-          const distance = Math.sqrt(Math.pow(newX - checkpointX, 2) + Math.pow(newY - checkpointY, 2));
-          
-          if (distance < 60) {
-            // Trigger quiz
-            state.setQuizActive(true);
-            state.setQuestionStartTime(Date.now());
-          }
-
-          // Update bot AI
-          state.bots.forEach(bot => {
-            if (bot.hasFinished) return; // Don't move if finished
-            
-            const botState = { ...bot };
-            
-            // Check if bot finished (using world coordinates)
-            if (botState.position.y <= 170 && botState.position.x >= 200 && botState.position.x <= worldWidth - 200) {
-              botState.hasFinished = true;
-              botState.position.speed = 0;
-              state.setBots(state.bots.map(b => b.id === bot.id ? botState : b));
-              console.log(`Bot ${bot.name} finished the race!`);
-              return;
-            }
-            
-            // Check if bot hits difficulty checkpoints
-            state.difficultyCheckpoints.forEach(checkpoint => {
-              if (!checkpoint.completed) {
-                const distance = Math.sqrt(Math.pow(botState.position.x - checkpoint.x, 2) + Math.pow(botState.position.y - checkpoint.y, 2));
-                if (distance < 30) {
-                  // Bot has chance to answer correctly based on skill level and accuracy
-                  const accuracy = bot.aiPersonality.accuracy;
-                  const skillBonus = bot.skillLevel === 'Beginner' ? 0 : 
-                                   bot.skillLevel === 'Intermediate' ? 0.1 :
-                                   bot.skillLevel === 'Expert' ? 0.2 : 0.3;
-                  const answerCorrect = Math.random() < (accuracy + skillBonus);
-                  
-                  if (answerCorrect) {
-                    // Apply speed boost to bot
-                    botState.position.speed *= checkpoint.speedBoost;
-                    console.log(`Bot ${bot.name} answered correctly! Speed boost: ${checkpoint.speedBoost}x`);
-                  }
-                  
-                  // Mark checkpoint as used (temporarily)
-                  setTimeout(() => {
-                    state.updateCheckpoint(checkpoint.id, false);
-                  }, 3000);
-                }
-              }
-            });
-            
-            // Simple AI: move towards finish line following track (world coordinates)
-            const centerX = worldWidth / 2;
-            const targetY = 170; // Finish line
-            
-            // Follow the track by staying near center horizontally and moving up
-            const targetX = centerX + (Math.random() - 0.5) * 300; // Some variation
-            
-            const dx = targetX - botState.position.x;
-            const dy = targetY - botState.position.y;
-            const targetRotation = Math.atan2(dy, dx);
-            
-            // Adjust rotation towards target
-            let rotationDiff = targetRotation - botState.position.rotation;
-            if (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
-            if (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
-            
-            botState.position.rotation += rotationDiff * 0.1 * bot.aiPersonality.aggressiveness;
-            
-            // Update speed based on skill level (slower default speed)
-            const baseSpeed = bot.skillLevel === 'Beginner' ? 1.2 : 
-                              bot.skillLevel === 'Intermediate' ? 1.5 :
-                              bot.skillLevel === 'Expert' ? 1.8 : 2.2;
-            
-            botState.position.speed = Math.max(1, baseSpeed + (Math.random() - 0.5) * bot.aiPersonality.consistency);
-            
-            // Update position
-            botState.position.x += Math.cos(botState.position.rotation) * botState.position.speed;
-            botState.position.y += Math.sin(botState.position.rotation) * botState.position.speed;
-            
-            // Keep within track bounds (more realistic)
-            botState.position.x = Math.max(130, Math.min(botState.position.x, width - 130));
-            botState.position.y = Math.max(70, Math.min(botState.position.y, height - 70));
-            
-            // Update progress (0-1 based on distance to finish)
-            const distanceToFinish = Math.abs(botState.position.y - 60);
-            botState.progress = Math.max(0, 1 - (distanceToFinish / (height - 130)));
-            
-            // Update bot in store
-            state.updateBotPosition(bot.id, botState.position);
-            
-            // Update bot sprite
-            const botSprite = botSpritesRef.current.get(bot.id);
-            if (botSprite) {
-              botSprite.x = botState.position.x;
-              botSprite.y = botState.position.y;
-              botSprite.rotation = botState.position.rotation;
-            }
-          });
-
-          // Don't allow movement after finishing
-          if (state.hasFinished) {
-            return;
-          }
-
-          // Update car sprite
-          if (carSpriteRef.current) {
-            carSpriteRef.current.x = newX;
-            carSpriteRef.current.y = newY;
-            carSpriteRef.current.rotation = newRotation;
-          }
-
-          // Make camera follow player car
-          if (viewportRef.current && carSpriteRef.current) {
-            const viewport = viewportRef.current;
-            viewport.follow(carSpriteRef.current, {
-              speed: 8,
-              radius: 50,
-              acceleration: 0.02
-            });
-          }
-
-          // Update store
-          state.updateCarPosition({
-            x: newX,
-            y: newY,
-            rotation: newRotation,
-            speed: newSpeed
-          });
-        };
-
-        // Start game loop
-        app.ticker.add(gameLoop);
-        console.log('Game loop added to ticker');
-        
-        console.log('PIXI initialization complete, setting pixiInitialized to true');
-        setPixiInitialized(true);
-      } catch (error) {
-        console.error('Failed to initialize PIXI.js:', error);
-        if (mounted) {
-          setPixiInitialized(false);
-        }
-      }
-    };
-
-    initPixi();
-
     return () => {
-      mounted = false;
-      console.log('Cleaning up PIXI application...');
-      setPixiInitialized(false);
-      
       if (appRef.current) {
-        try {
-          appRef.current.destroy(true, {
-            children: true,
-            texture: true
-          });
-          console.log('PIXI application destroyed successfully');
-        } catch (error) {
-          console.error('Error destroying PIXI app:', error);
-        }
+        // Remove WebGL context event listeners
+        const canvas = appRef.current.canvas as HTMLCanvasElement;
+        canvas.removeEventListener('webglcontextlost', handleWebGLContextLost);
+        canvas.removeEventListener('webglcontextrestored', handleWebGLContextRestored);
+        
+        appRef.current.destroy(true, true);
         appRef.current = null;
       }
-      
-      // Clear refs
-      carSpriteRef.current = null;
-      trackRef.current = null;
-      checkpointRef.current = null;
-      finishLineRef.current = null;
-      botSpritesRef.current.clear();
-      difficultyCheckpointSpritesRef.current.clear();
+      // Clean up sound manager
+      soundManager.stopEngine();
     };
-  }, [canvasReady, width, height]); // Depend on canvasReady
+  }, [canvasReady, webglContextLost]);
 
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       console.log('Key down:', event.code);
       keysRef.current = { ...keysRef.current, [event.code]: true };
-      setKeys(prev => ({ ...prev, [event.code]: true }));
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
       console.log('Key up:', event.code);
       keysRef.current = { ...keysRef.current, [event.code]: false };
-      setKeys(prev => ({ ...prev, [event.code]: false }));
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -697,45 +718,86 @@ export const RaceTrack: React.FC<RaceTrackProps> = ({ width, height }) => {
     };
   }, []);
 
-  console.log('RaceTrack render - canvasReady:', canvasReady, 'pixiInitialized:', pixiInitialized);
-
   if (!pixiInitialized) {
     return (
       <div className="race-track-container">
-        <div className="loading-track">
-          <p>Loading race track...</p>
-          <p style={{ fontSize: '0.8rem', marginTop: '1rem' }}>
-            Canvas Ready: {canvasReady ? 'Yes' : 'No'} | Check browser console for details
-          </p>
+        <div className="race-track">
+          <div ref={canvasRef} className="race-canvas" style={{ display: 'none' }} />
+          <div className="loading-track">
+            <p>Loading race track...</p>
+            <p style={{ fontSize: '0.8rem', marginTop: '1rem' }}>
+              Canvas Ready: {canvasReady ? 'Yes' : 'No'} | Check browser console for details
+            </p>
+          </div>
         </div>
-        <div ref={canvasRef} style={{ display: 'none' }} />
       </div>
     );
   }
 
   return (
     <div className="race-track-container">
-      <div ref={canvasRef} className="race-track" />
-      <div className="race-hud">
+      <div className="race-track">
+        {/* PIXI Canvas */}
+        <div ref={canvasRef} className="race-canvas" />
+        
+        {/* HUD Overlay - Full Screen Game UI */}
+        <div className={`race-hud ${hudCollapsed ? 'collapsed' : ''}`}>
+          {/* Top Section - Speed and Status */}
+          <div className="hud-top">
         <div className="speed-meter">
-          Speed: {Math.abs(carPosition.speed).toFixed(1)} 
-          {speedBoost > 1 && <span style={{color: '#00ff00'}}> (BOOST {speedBoost.toFixed(1)}x)</span>}
+              🏎️ Speed: {Math.abs(carPosition.speed).toFixed(1)} 
+              {speedBoost > 1 && <span style={{color: '#00ff00'}}> ⚡ BOOST {speedBoost.toFixed(1)}x</span>}
         </div>
         <div className="position">
-          Position: ({carPosition.x.toFixed(0)}, {carPosition.y.toFixed(0)})
+              📍 Position: ({carPosition.x.toFixed(0)}, {carPosition.y.toFixed(0)})
+            </div>
         </div>
+
+          {/* Left Side - Bot Info */}
+          {!hudCollapsed && (
+            <div className="hud-left">
         <div className="bot-info">
-          <h4>Bot Standings:</h4>
+                <h4>🏆 Race Standings</h4>
           {bots.map((bot, index) => (
-            <div key={bot.id} style={{color: `#${bot.color.toString(16).padStart(6, '0')}`}}>
+            <div key={bot.id} style={{color: `#${(bot.color || 0xFFFFFF).toString(16).padStart(6, '0')}`}}>
               {index + 1}. {bot.name} ({bot.skillLevel}) - {(bot.progress * 100).toFixed(1)}%
             </div>
           ))}
         </div>
+            </div>
+          )}
+
+          {/* Bottom Section - Controls Help */}
+          {!hudCollapsed && (
+            <div className="hud-bottom">
         <div className="controls">
-          <p>Use WASD or Arrow Keys to control the car</p>
-          <p>Drive through colored checkpoints for speed boosts!</p>
-          <p>Reach the checkered finish line at the top!</p>
+                <div className="control-hint">
+                  <span className="key">WASD</span> or <span className="key">Arrow Keys</span> to drive
+                </div>
+                <div className="control-hint">
+                  Drive through <span style={{color: '#00ff00'}}>colored checkpoints</span> for speed boosts!
+                </div>
+                <div className="control-hint">
+                  🍔 Open menu (top-right) for more options
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Toggle Button */}
+          <div className="hud-toggle" onClick={() => setHudCollapsed(!hudCollapsed)}>
+            {hudCollapsed ? '📊' : '📉'}
+          </div>
+          
+          {/* Minimal HUD when collapsed */}
+          {hudCollapsed && (
+            <div className="hud-minimal">
+              <div className="speed-compact">
+                🏎️ {Math.abs(carPosition.speed).toFixed(1)}
+                {speedBoost > 1 && <span style={{color: '#00ff00'}}>⚡</span>}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

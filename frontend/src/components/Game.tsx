@@ -5,6 +5,7 @@ import { RaceTrack } from './RaceTrack';
 import { QuizOverlay } from './QuizOverlay';
 import { Leaderboard } from './Leaderboard';
 import { ToastContainer } from './Toast';
+import { GameMenu } from './GameMenu';
 
 export const Game: React.FC = () => {
   const {
@@ -31,6 +32,57 @@ export const Game: React.FC = () => {
 
   const [startTime, setStartTime] = useState<number>(0);
   const [showLeaderboard, setShowLeaderboard] = useState<boolean>(false);
+  const [screenDimensions, setScreenDimensions] = useState({ width: 900, height: 800 });
+
+  // Calculate responsive dimensions for the race track
+  useEffect(() => {
+    const calculateDimensions = () => {
+      const isMobile = window.innerWidth <= 768;
+      const padding = isMobile ? 10 : 40;
+      // Much more compact header now
+      const headerHeight = isMobile ? 60 : 160; 
+      const controlsHeight = isMobile ? 50 : 60;
+      
+      const availableWidth = window.innerWidth - padding;
+      const availableHeight = window.innerHeight - headerHeight - controlsHeight;
+      
+      if (isMobile) {
+        // Mobile: Use more of the screen, maintain good aspect ratio
+        const maxWidth = Math.min(availableWidth, window.innerWidth * 0.95);
+        const maxHeight = Math.min(availableHeight, window.innerHeight * 0.75);
+        
+        // Maintain 4:3 aspect ratio for better gameplay
+        const aspectRatio = 4 / 3;
+        let width = Math.max(320, maxWidth);
+        let height = width / aspectRatio;
+        
+        // If height exceeds available space, adjust width accordingly
+        if (height > maxHeight) {
+          height = Math.max(240, maxHeight);
+          width = height * aspectRatio;
+        }
+        
+        setScreenDimensions({ 
+          width: Math.round(width), 
+          height: Math.round(height) 
+        });
+      } else {
+        // Desktop: use fixed large size or scale down if needed
+        const width = Math.min(900, availableWidth);
+        const height = Math.min(800, availableHeight);
+        setScreenDimensions({ width, height });
+      }
+    };
+
+    calculateDimensions();
+    window.addEventListener('resize', calculateDimensions);
+    window.addEventListener('orientationchange', calculateDimensions);
+    
+    return () => {
+      window.removeEventListener('resize', calculateDimensions);
+      window.removeEventListener('orientationchange', calculateDimensions);
+    };
+  }, []);
 
   useEffect(() => {
     // Update lap time every 100ms when racing
@@ -45,18 +97,48 @@ export const Game: React.FC = () => {
   }, [isRacing, startTime, updateLapTime]);
 
   const startNewRace = async () => {
+    console.log('Starting new race...');
     setLoading(true);
     setError(null);
     
     try {
+      console.log('Calling apiClient.startSession()...');
       const session = await apiClient.startSession();
+      console.log('Session created:', session);
+      
       setSession(session);
       setRacing(true);
       setGameMode('racing');
       setStartTime(Date.now());
+      
+      console.log('Race started successfully!');
+      console.log('Current game state:', {
+        isRacing: true,
+        gameMode: 'racing',
+        sessionId: session.sessionId
+      });
     } catch (err) {
       setError('Failed to start race session');
       console.error('Start race error:', err);
+      
+      // Fallback: Start race without backend session for testing
+      console.log('Attempting to start race without backend session...');
+      const mockSession = {
+        sessionId: Date.now(),
+        userId: undefined,
+        startUtc: new Date().toISOString(),
+        endUtc: undefined,
+        finalTimeMs: undefined,
+        livesUsed: 0,
+        isCompleted: false
+      };
+      
+      setSession(mockSession);
+      setRacing(true);
+      setGameMode('racing');
+      setStartTime(Date.now());
+      
+      console.log('Mock race started!');
     } finally {
       setLoading(false);
     }
@@ -114,7 +196,7 @@ export const Game: React.FC = () => {
               {bots
                 .sort((a, b) => b.progress - a.progress)
                 .map((bot, index) => (
-                  <div key={bot.id} style={{color: `#${bot.color.toString(16).padStart(6, '0')}`}}>
+                  <div key={bot.id} style={{color: `#${(bot.color || 0xFFFFFF).toString(16).padStart(6, '0')}`}}>
                     {index + 1}. {bot.name} ({bot.skillLevel}) - {(bot.progress * 100).toFixed(1)}% complete
                   </div>
                 ))
@@ -178,31 +260,27 @@ export const Game: React.FC = () => {
 
       {currentSession && gameMode === 'racing' && (
         <>
-          <RaceTrack width={900} height={800} />
-          <div className="race-controls">
-            <button onClick={finishRace} className="finish-button">
-              🏁 Finish Race
-            </button>
-            <button onClick={() => setShowLeaderboard(true)} className="leaderboard-button">
-              🏆 View Leaderboard
-            </button>
-          </div>
+          <RaceTrack width={screenDimensions.width} height={screenDimensions.height} />
+          <GameMenu 
+            onFinishRace={finishRace}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
+            onRestartRace={handleRestart}
+          />
         </>
       )}
 
       {gameMode === 'spectating' && (
-        <div className="spectator-mode">
-          <h2>👁️ Spectator Mode</h2>
-          <p>You've run out of lives! Watch the AI complete the race.</p>
-          <div className="spectator-controls">
-            <button onClick={handleRestart} className="restart-button">
-              🔄 Try Again
-            </button>
-            <button onClick={() => setShowLeaderboard(true)} className="leaderboard-button">
-              🏆 View Leaderboard
-            </button>
+        <>
+          <div className="spectator-mode">
+            <h2>👁️ Spectator Mode</h2>
+            <p>You've run out of lives! Watch the AI complete the race.</p>
           </div>
-        </div>
+          <GameMenu 
+            onFinishRace={finishRace}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
+            onRestartRace={handleRestart}
+          />
+        </>
       )}
 
       <QuizOverlay />

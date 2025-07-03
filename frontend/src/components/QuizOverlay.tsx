@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { apiClient } from '../lib/api';
-import type { Question } from '../lib/api';
+
 
 export const QuizOverlay: React.FC = () => {
   const {
