@@ -215,7 +215,7 @@ export const Game: React.FC = () => {
   }
 
   return (
-    <div className="game-container">
+    <div className={`game-container ${currentSession && gameMode === 'racing' ? 'racing' : 'main-page'}`}>
       <div className="game-header">
         <h1>🏁 Code Racer</h1>
         <div className="game-stats">
@@ -240,7 +240,7 @@ export const Game: React.FC = () => {
         
         {!currentSession && (
           <div className="start-section">
-            <p>Test your software engineering knowledge while racing!</p>
+            <p>Sharpen your software engineering skills while racing - from fundamentals to advanced concepts!</p>
             <button 
               onClick={startNewRace} 
               disabled={isLoading}
