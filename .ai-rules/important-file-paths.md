@@ -110,6 +110,10 @@ This document tracks frequently accessed and important files in the Code Racer p
 
 ## Development Workflow Files
 
+### Development Rules
+- **Application Runtime**: The Code Racer application is typically already running during development sessions. DO NOT automatically run `npm run dev` or start the application unless explicitly requested by the user.
+- **Testing Changes**: Assume the application is already running and changes will be hot-reloaded automatically.
+
 ### Database Migrations
 - `Backend/Migrations/` - Entity Framework migration files (auto-generated)
 
