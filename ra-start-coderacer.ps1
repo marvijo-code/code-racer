@@ -89,36 +89,17 @@ function Start-Backend {
         }
     }
     
-    # Start backend in new terminal window
-    Write-ColorOutput "🚀 Starting backend in new window..." $Green
+    # Start backend as background job
+    Write-ColorOutput "🚀 Starting backend..." $Green
     $backendPath = Resolve-Path $BACKEND_DIR
-    Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", "cd '$backendPath'; dotnet run"
+    $backendJob = Start-Job -Name "CodeRacer-Backend" -ScriptBlock {
+        param($BackendPath)
+        Set-Location $BackendPath
+        dotnet run
+    } -ArgumentList $backendPath
     
-    Write-ColorOutput "⏳ Waiting for backend to start..." $Yellow
-    
-    # Wait for backend to be ready (max 30 seconds)
-    $timeout = 30
-    $elapsed = 0
-    while ($elapsed -lt $timeout) {
-        Start-Sleep -Seconds 2
-        $elapsed += 2
-        
-        try {
-            $response = Invoke-WebRequest -Uri "http://localhost:$BACKEND_PORT/api/v1/questions/random" -TimeoutSec 5 -ErrorAction SilentlyContinue
-            if ($response.StatusCode -eq 200) {
-                Write-ColorOutput "✅ Backend is ready on http://localhost:$BACKEND_PORT" $Green
-                return $true
-            }
-        }
-        catch {
-            # Still waiting
-        }
-        
-        Write-Host "." -NoNewline
-    }
-    
-    Write-ColorOutput "`n❌ Backend failed to start within $timeout seconds" $Red
-    return $false
+    Write-ColorOutput "✅ Backend started in background (Job ID: $($backendJob.Id))" $Green
+    return $true
 }
 
 function Start-Frontend {
@@ -137,36 +118,17 @@ function Start-Frontend {
         }
     }
     
-    # Start frontend in new terminal window
-    Write-ColorOutput "🎨 Starting frontend in new window..." $Green
+    # Start frontend as background job
+    Write-ColorOutput "🎨 Starting frontend..." $Green
     $frontendPath = Resolve-Path $FRONTEND_DIR
-    Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", "cd '$frontendPath'; npm run dev"
+    $frontendJob = Start-Job -Name "CodeRacer-Frontend" -ScriptBlock {
+        param($FrontendPath)
+        Set-Location $FrontendPath
+        npm run dev
+    } -ArgumentList $frontendPath
     
-    Write-ColorOutput "⏳ Waiting for frontend to start..." $Yellow
-    
-    # Wait for frontend to be ready (max 30 seconds)
-    $timeout = 30
-    $elapsed = 0
-    while ($elapsed -lt $timeout) {
-        Start-Sleep -Seconds 2
-        $elapsed += 2
-        
-        try {
-            $response = Invoke-WebRequest -Uri "http://localhost:$FRONTEND_PORT" -TimeoutSec 5 -ErrorAction SilentlyContinue
-            if ($response.StatusCode -eq 200) {
-                Write-ColorOutput "✅ Frontend is ready on http://localhost:$FRONTEND_PORT" $Green
-                return $true
-            }
-        }
-        catch {
-            # Still waiting
-        }
-        
-        Write-Host "." -NoNewline
-    }
-    
-    Write-ColorOutput "`n❌ Frontend failed to start within $timeout seconds" $Red
-    return $false
+    Write-ColorOutput "✅ Frontend started in background (Job ID: $($frontendJob.Id))" $Green
+    return $true
 }
 
 function Show-Status {
@@ -177,13 +139,6 @@ function Show-Status {
     $backendRunning = -not (Test-PortAvailable -Port $BACKEND_PORT)
     if ($backendRunning) {
         Write-ColorOutput "✅ Backend: Running on http://localhost:$BACKEND_PORT" $Green
-        try {
-            $response = Invoke-WebRequest -Uri "http://localhost:$BACKEND_PORT/api/v1/questions/random" -TimeoutSec 5 -ErrorAction SilentlyContinue
-            Write-ColorOutput "   API Status: Responding (HTTP $($response.StatusCode))" $Green
-        }
-        catch {
-            Write-ColorOutput "   API Status: Not responding" $Red
-        }
     } else {
         Write-ColorOutput "❌ Backend: Not running" $Red
     }
@@ -192,15 +147,20 @@ function Show-Status {
     $frontendRunning = -not (Test-PortAvailable -Port $FRONTEND_PORT)
     if ($frontendRunning) {
         Write-ColorOutput "✅ Frontend: Running on http://localhost:$FRONTEND_PORT" $Green
-        try {
-            $response = Invoke-WebRequest -Uri "http://localhost:$FRONTEND_PORT" -TimeoutSec 5 -ErrorAction SilentlyContinue
-            Write-ColorOutput "   UI Status: Accessible (HTTP $($response.StatusCode))" $Green
-        }
-        catch {
-            Write-ColorOutput "   UI Status: Not accessible" $Red
-        }
     } else {
         Write-ColorOutput "❌ Frontend: Not running" $Red
+    }
+    
+    # Check background jobs
+    Write-ColorOutput "`n🔧 Background Jobs:" $Blue
+    $jobs = Get-Job | Where-Object { $_.Name -like "CodeRacer-*" }
+    if ($jobs) {
+        foreach ($job in $jobs) {
+            $status = if ($job.State -eq "Running") { "✅" } else { "❌" }
+            Write-ColorOutput "   $status $($job.Name): $($job.State)" $Green
+        }
+    } else {
+        Write-ColorOutput "   No CodeRacer jobs running" $Yellow
     }
     
     # Check Docker services
@@ -221,24 +181,51 @@ function Show-Status {
 function Stop-Services {
     Write-ColorOutput "🛑 Stopping Code Racer services..." $Red
     
-    # Stop backend
+    # Stop background jobs
+    $jobs = Get-Job | Where-Object { $_.Name -like "CodeRacer-*" }
+    if ($jobs) {
+        foreach ($job in $jobs) {
+            Write-ColorOutput "🛑 Stopping job: $($job.Name)" $Yellow
+            Stop-Job -Job $job -ErrorAction SilentlyContinue
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        }
+    }
+    
+    # Stop processes by port
     if (-not (Test-PortAvailable -Port $BACKEND_PORT)) {
         Stop-ProcessByPort -Port $BACKEND_PORT -ServiceName "Backend"
     }
     
-    # Stop frontend
     if (-not (Test-PortAvailable -Port $FRONTEND_PORT)) {
         Stop-ProcessByPort -Port $FRONTEND_PORT -ServiceName "Frontend"
     }
     
-    # Stop any remaining node/dotnet processes
-    Write-ColorOutput "🧹 Cleaning up remaining processes..." $Yellow
-    Get-Process | Where-Object { $_.ProcessName -eq "node" -or $_.ProcessName -eq "dotnet" } | ForEach-Object {
-        Write-ColorOutput "   Stopping $($_.ProcessName) (PID: $($_.Id))" $Yellow
-        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
-    }
-    
     Write-ColorOutput "✅ All services stopped" $Green
+}
+
+function Show-Logs {
+    Write-ColorOutput "📋 Showing service logs..." $Blue
+    Write-ColorOutput "Press Ctrl+C to stop watching logs" $Yellow
+    
+    $jobs = Get-Job | Where-Object { $_.Name -like "CodeRacer-*" }
+    if ($jobs) {
+        try {
+            while ($true) {
+                foreach ($job in $jobs) {
+                    $output = Receive-Job -Job $job -ErrorAction SilentlyContinue
+                    if ($output) {
+                        Write-ColorOutput "[$($job.Name)] $output" $Cyan
+                    }
+                }
+                Start-Sleep -Seconds 1
+            }
+        }
+        catch {
+            Write-ColorOutput "`n🛑 Log watching stopped" $Yellow
+        }
+    } else {
+        Write-ColorOutput "❌ No CodeRacer jobs running" $Red
+    }
 }
 
 # Handle command line arguments
@@ -285,18 +272,22 @@ if (-not $frontendStarted) {
     exit 1
 }
 
+# Give services a moment to start
+Start-Sleep -Seconds 3
+
 # Success!
 Write-ColorOutput "`n🎉 Code Racer is ready!" $Green
 Write-ColorOutput "📱 Frontend: http://localhost:$FRONTEND_PORT" $Green
 Write-ColorOutput "🔧 Backend API: http://localhost:$BACKEND_PORT" $Green
-Write-ColorOutput "📊 API Test: http://localhost:$BACKEND_PORT/api/v1/questions/random" $Green
 
 Write-ColorOutput "`n💡 Useful commands:" $Blue
 Write-ColorOutput "   .\start-coderacer.ps1 -Status    # Check status" $Blue
 Write-ColorOutput "   .\start-coderacer.ps1 -Stop      # Stop all services" $Blue
 Write-ColorOutput "   .\start-coderacer.ps1 -Restart   # Restart all services" $Blue
 
-Write-ColorOutput "`n⚡ Backend and Frontend are running in separate terminal windows" $Yellow
-Write-ColorOutput "🛑 Close the terminal windows or use .\start-coderacer.ps1 -Stop to stop services" $Yellow
+Write-ColorOutput "`n⚡ Services are running in background jobs with hot reload enabled" $Yellow
+Write-ColorOutput "🛑 Use .\start-coderacer.ps1 -Stop to stop services" $Yellow
 
-Write-ColorOutput "`n✅ Setup complete! Both services should be running in separate windows." $Green 
+# Show logs
+Write-ColorOutput "`n📋 Starting log viewer..." $Blue
+Show-Logs 

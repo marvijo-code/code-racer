@@ -1,0 +1,10 @@
+{
+  "filters": [
+    {
+      "column": "TimeGenerated",
+      "operator": ">",
+      "value": "1900-01-01T00:00:00Z"
+    }
+  ],
+  "table": "AzureActivity"
+}
