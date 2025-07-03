@@ -6,6 +6,7 @@ import { QuizOverlay } from './QuizOverlay';
 import { Leaderboard } from './Leaderboard';
 import { ToastContainer } from './Toast';
 import { GameMenu } from './GameMenu';
+import { RandomQuestions } from './RandomQuestions';
 
 export const Game: React.FC = () => {
   const {
@@ -256,6 +257,11 @@ export const Game: React.FC = () => {
           <p>⚠️ {error}</p>
           <button onClick={() => setError(null)}>✕</button>
         </div>
+      )}
+
+      {/* Random Questions Preview - Only show when not racing */}
+      {!currentSession && (
+        <RandomQuestions />
       )}
 
       {currentSession && gameMode === 'racing' && (

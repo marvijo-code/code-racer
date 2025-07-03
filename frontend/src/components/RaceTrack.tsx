@@ -19,7 +19,7 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
   const trackRef = useRef<PIXI.Graphics | null>(null);
 
   const botSpritesRef = useRef<Map<string, PIXI.Graphics>>(new Map());
-  const exhaustParticlesRef = useRef<PIXI.ParticleContainer | null>(null);
+  const exhaustParticlesRef = useRef<PIXI.Container | null>(null);
   const difficultyCheckpointSpritesRef = useRef<Map<string, PIXI.Container>>(new Map());
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const [pixiInitialized, setPixiInitialized] = useState(false);
@@ -235,7 +235,7 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
       // Enhanced initialization with WebGL context recovery
       await app.init({
         resizeTo: container,
-        backgroundColor: '#228B22',
+        backgroundColor: '#000000',
         antialias: true,
         powerPreference: 'high-performance', // Request high-performance GPU
         premultipliedAlpha: false, // Fix alpha-premult warning
@@ -259,8 +259,14 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
       
       console.log('Canvas added to DOM with WebGL context handlers');
 
-      const worldWidth = container.clientWidth * 2;
-      const worldHeight = container.clientHeight * 3;
+      const worldWidth = Math.max(container.clientWidth * 1.5, 1200); // Smaller world for better visibility
+      const worldHeight = Math.max(container.clientHeight * 2, 1600); // Smaller world for better visibility
+      
+      console.log('Container dimensions:', { 
+        clientWidth: container.clientWidth, 
+        clientHeight: container.clientHeight 
+      });
+      console.log('Calculated world dimensions:', { worldWidth, worldHeight });
 
       const viewport = new Viewport({
         screenWidth: container.clientWidth,
@@ -279,28 +285,29 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
       // --- Create Professional Vertical Race Track ---
       const track = new PIXI.Graphics();
       
-      // Track background (asphalt gray)
-      track.roundRect(200, 200, worldWidth - 400, worldHeight - 400, 20).fill({ color: 0x2a2a2a });
+      // Track background (black asphalt) - make track larger and more centered
+      const trackMargin = 100; // Reduced margin for larger track
+      track.roundRect(trackMargin, trackMargin, worldWidth - (trackMargin * 2), worldHeight - (trackMargin * 2), 20).fill({ color: 0x000000 });
       
       // Track borders (white lines)
-      track.roundRect(200, 200, worldWidth - 400, worldHeight - 400, 20).stroke({ width: 8, color: 0xffffff });
+      track.roundRect(trackMargin, trackMargin, worldWidth - (trackMargin * 2), worldHeight - (trackMargin * 2), 20).stroke({ width: 8, color: 0xffffff });
       
-      // Center dividing lines (dashed yellow lines down the middle)
+      // Center dividing lines (dashed white lines down the middle)
       const centerX = worldWidth / 2;
-      const dashLength = 40;
-      const gapLength = 30;
-      const lineWidth = 4;
+      const dashLength = 60;
+      const gapLength = 40;
+      const lineWidth = 12; // Much thicker lines
       
-      for (let y = 220; y < worldHeight - 220; y += dashLength + gapLength) {
-        track.roundRect(centerX - lineWidth/2, y, lineWidth, Math.min(dashLength, worldHeight - 220 - y), 2).fill({ color: 0xffff00 });
+      for (let y = trackMargin + 20; y < worldHeight - trackMargin - 20; y += dashLength + gapLength) {
+        track.roundRect(centerX - lineWidth/2, y, lineWidth, Math.min(dashLength, worldHeight - trackMargin - 20 - y), 4).fill({ color: 0xffffff });
       }
       
       // Start/Finish line at bottom (checkered pattern)
-      const finishY = worldHeight - 250;
+      const finishY = worldHeight - trackMargin - 50;
       const squareSize = 20;
-      for (let x = 220; x < worldWidth - 220; x += squareSize) {
+      for (let x = trackMargin + 20; x < worldWidth - trackMargin - 20; x += squareSize) {
         for (let i = 0; i < 2; i++) {
-          const color = ((x - 220) / squareSize + i) % 2 === 0 ? 0xffffff : 0x000000;
+          const color = ((x - (trackMargin + 20)) / squareSize + i) % 2 === 0 ? 0xffffff : 0x000000;
           track.roundRect(x, finishY + i * squareSize, squareSize, squareSize, 0).fill({ color });
         }
       }
@@ -312,28 +319,36 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
       const car = createRealisticCar(0x0066FF, true);
       
       // Position car at the bottom center of the track (within track boundaries)
-      const trackMargin = 250; // Distance from track edge
       car.x = worldWidth / 2; // Center horizontally
-      car.y = worldHeight - trackMargin; // Near bottom, within track
+      car.y = worldHeight - trackMargin - 60; // Position within actual track bounds
       car.rotation = -Math.PI / 2; // Point upward
+      
+      console.log('Car starting position:', { x: car.x, y: car.y });
+      console.log('World dimensions:', { worldWidth, worldHeight });
+      console.log('Track bounds:', {
+        left: 200 + 30,
+        right: worldWidth - 200 - 30,
+        top: 200 + 30,
+        bottom: worldHeight - 200 - 30
+      });
       
       viewport.addChild(car);
       carSpriteRef.current = car;
 
-      // Configure viewport following with better settings
-      viewport.follow(car, { 
-        speed: 12, // Faster following
-        acceleration: 0.08, // Smoother acceleration
-        radius: 100 // Larger follow radius for smoother movement
-      });
+      // Center the viewport on the track initially - show full track from start
+      viewport.moveCenter(worldWidth / 2, worldHeight / 2);
       
-      // Center the viewport on the car initially
-      viewport.moveCenter(car.x, car.y);
+      // Don't follow car initially - will be enabled when racing starts
+      // viewport.follow(car, { 
+      //   speed: 12, // Faster following
+      //   acceleration: 0.08, // Smoother acceleration
+      //   radius: 100 // Larger follow radius for smoother movement
+      // });
       
       if (isMobileDevice) {
-        viewport.setZoom(0.6, true); // Zoom out more on mobile for better view
+        viewport.setZoom(0.5, true); // Zoom out to see full track on mobile
       } else {
-        viewport.setZoom(0.8, true); // Slightly zoomed out on desktop
+        viewport.setZoom(0.7, true); // Zoom out to see full track on desktop
       }
       
       // Update the game store with correct initial position
@@ -349,9 +364,8 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
         const botCar = createRealisticCar(bot.color, false);
         
         // Position bots near the player car but spread out horizontally
-        const trackMargin = 250; // Distance from track edge
         botCar.x = (worldWidth / 2) + (index - 2) * 80; // Spread around center with more spacing
-        botCar.y = worldHeight - trackMargin + (index * 15); // Slightly staggered
+        botCar.y = worldHeight - trackMargin - 50 + (index * 15); // Slightly staggered, within track bounds
         botCar.rotation = -Math.PI / 2; // Point upward like player
         
         viewport.addChild(botCar);
@@ -375,9 +389,8 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
         newBots.forEach((bot, index) => {
           const botCar = createRealisticCar(bot.color, false);
           
-          const trackMargin = 250;
           botCar.x = (worldWidth / 2) + (index - 2) * 80;
-          botCar.y = worldHeight - trackMargin + (index * 15);
+          botCar.y = worldHeight - trackMargin - 50 + (index * 15);
           botCar.rotation = -Math.PI / 2;
           
           viewport.addChild(botCar);
@@ -392,9 +405,9 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
         // Balloon shape (circle with pointer at bottom)
         const balloon = new PIXI.Graphics();
         
-        // Main balloon circle
-        balloon.circle(0, -10, 30).fill({ color: checkpoint.color });
-        balloon.circle(0, -10, 28).stroke({ width: 3, color: 0xffffff });
+        // Main balloon circle - made bigger for better visibility
+        balloon.circle(0, -10, 50).fill({ color: checkpoint.color });
+        balloon.circle(0, -10, 48).stroke({ width: 4, color: 0xffffff });
         
         // Balloon pointer (triangle at bottom)
         balloon.moveTo(-8, 15).lineTo(8, 15).lineTo(0, 25).lineTo(-8, 15).fill({ color: checkpoint.color });
@@ -424,18 +437,18 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
         difficultyCheckpointSpritesRef.current.set(checkpoint.id, checkpointContainer);
       });
 
-      // Create optimized exhaust particle system
-      const exhaustParticles = new PIXI.ParticleContainer();
+      // Create exhaust particle system
+      const exhaustParticles = new PIXI.Container(); // Use regular Container instead of ParticleContainer
       viewport.addChild(exhaustParticles);
       exhaustParticlesRef.current = exhaustParticles;
       
       // Define track boundaries once (accessible in game loop)
       const carMargin = 30; // Half car width/height plus some buffer
       const trackBounds = {
-        left: 200 + carMargin,
-        right: worldWidth - 200 - carMargin,
-        top: 200 + carMargin,
-        bottom: worldHeight - 200 - carMargin
+        left: trackMargin + carMargin,
+        right: worldWidth - trackMargin - carMargin,
+        top: trackMargin + carMargin,
+        bottom: worldHeight - trackMargin - carMargin
       };
 
       console.log('PIXI initialization completed successfully!');
@@ -445,7 +458,9 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
       // --- Game Loop ---
       app.ticker.add(() => {
         const state = useGameStore.getState();
-        if (!state.isRacing || !carSpriteRef.current) return;
+        if (!state.isRacing || !carSpriteRef.current) {
+          return;
+        }
         
         let newSpeed = state.carPosition.speed;
         const maxSpeed = 15; // Increased maximum speed for better movement
@@ -457,11 +472,22 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
         if (!engineStarted) {
           soundManager.startEngine();
           setEngineStarted(true);
+          
+          // Enable viewport following when racing starts
+          if (viewportRef.current && carSpriteRef.current) {
+            viewportRef.current.follow(carSpriteRef.current, { 
+              speed: 12, // Faster following
+              acceleration: 0.08, // Smoother acceleration
+              radius: 100 // Larger follow radius for smoother movement
+            });
+          }
         }
         
         // Speed control with realistic physics
         const isAccelerating = keysRef.current['ArrowUp'] || keysRef.current['KeyW'];
         const isBrakingNow = keysRef.current['ArrowDown'] || keysRef.current['KeyS'];
+        
+        // Movement is working - debug logging removed for cleaner console
         
         if (isAccelerating) {
           newSpeed = Math.min(maxSpeed, newSpeed + acceleration);
@@ -476,6 +502,12 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
         } else {
           newSpeed *= friction; // Natural friction when no input
           setIsBraking(false);
+        }
+        
+        // Debug: Force some movement to test if physics work
+        if (Math.random() < 0.001) { // Very rarely, give the car a push
+          console.log('DEBUG: Giving car a test push!');
+          newSpeed = 2; // Force some speed
         }
         
         // Update engine sound based on speed
@@ -507,10 +539,31 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
         carSpriteRef.current.x = constrainedX;
         carSpriteRef.current.y = constrainedY;
         
+        // Debug: Log position changes
+        if (Math.abs(newSpeed) > 0.1 && Math.random() < 0.1) {
+          console.log('Position Update:', {
+            currentPos: { x: carSpriteRef.current.x, y: carSpriteRef.current.y },
+            calculatedPos: { x: newX, y: newY },
+            constrainedPos: { x: constrainedX, y: constrainedY },
+            trackBounds,
+            speed: newSpeed,
+            effectiveSpeed: newSpeed * state.speedBoost
+          });
+        }
+        
         // If hitting a boundary, reduce speed for realistic collision
         if (newX !== constrainedX || newY !== constrainedY) {
           newSpeed *= 0.3; // Reduce speed when hitting walls
           soundManager.playBrakeSound(); // Play collision sound
+          console.log('Boundary collision detected!', {
+            attempted: { x: newX, y: newY },
+            constrained: { x: constrainedX, y: constrainedY },
+            bounds: trackBounds,
+            hitLeft: newX < trackBounds.left,
+            hitRight: newX > trackBounds.right,
+            hitTop: newY < trackBounds.top,
+            hitBottom: newY > trackBounds.bottom
+          });
         }
         
         // Generate optimized exhaust particles when accelerating
@@ -568,8 +621,8 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
               Math.pow(carSpriteRef.current!.y - checkpoint.y, 2)
             );
             
-            // Collision radius of ~40 pixels
-            if (distance < 40) {
+            // Collision radius of ~60 pixels (matches bigger circles)
+            if (distance < 60) {
               // Play checkpoint sound
               soundManager.playCheckpointSound();
               
@@ -620,18 +673,18 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
           
           // Keep bots within track bounds
           const botTrackBounds = {
-            left: 230,
-            right: worldWidth - 230,
-            top: 230,
-            bottom: worldHeight - 230
+            left: trackMargin + 30,
+            right: worldWidth - trackMargin - 30,
+            top: trackMargin + 30,
+            bottom: worldHeight - trackMargin - 30
           };
           
           botSprite.x = Math.max(botTrackBounds.left, Math.min(botTrackBounds.right, botSprite.x));
           botSprite.y = Math.max(botTrackBounds.top, Math.min(botTrackBounds.bottom, botSprite.y));
           
           // Calculate progress (0 = start, 1 = finish)
-          const startY = worldHeight - 250;
-          const finishY = 300;
+          const startY = worldHeight - trackMargin - 50;
+          const finishY = trackMargin + 50;
           const progress = Math.max(0, Math.min(1, (startY - botSprite.y) / (startY - finishY)));
           
           // Update bot position in store
@@ -702,6 +755,11 @@ export const RaceTrack: React.FC<RaceTrackProps> = () => {
     const handleKeyDown = (event: KeyboardEvent) => {
       console.log('Key down:', event.code);
       keysRef.current = { ...keysRef.current, [event.code]: true };
+      
+      // Debug: Log movement keys specifically
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {
+        console.log('Movement key pressed:', event.code, 'Current keys:', keysRef.current);
+      }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
