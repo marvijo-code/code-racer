@@ -5,6 +5,8 @@ import { RaceTrack } from './RaceTrack';
 import { QuizOverlay } from './QuizOverlay';
 import { Leaderboard } from './Leaderboard';
 import { ToastContainer } from './Toast';
+import { GameMenu } from './GameMenu';
+import { RandomQuestions } from './RandomQuestions';
 
 export const Game: React.FC = () => {
   const {
@@ -96,18 +98,48 @@ export const Game: React.FC = () => {
   }, [isRacing, startTime, updateLapTime]);
 
   const startNewRace = async () => {
+    console.log('Starting new race...');
     setLoading(true);
     setError(null);
     
     try {
+      console.log('Calling apiClient.startSession()...');
       const session = await apiClient.startSession();
+      console.log('Session created:', session);
+      
       setSession(session);
       setRacing(true);
       setGameMode('racing');
       setStartTime(Date.now());
+      
+      console.log('Race started successfully!');
+      console.log('Current game state:', {
+        isRacing: true,
+        gameMode: 'racing',
+        sessionId: session.sessionId
+      });
     } catch (err) {
       setError('Failed to start race session');
       console.error('Start race error:', err);
+      
+      // Fallback: Start race without backend session for testing
+      console.log('Attempting to start race without backend session...');
+      const mockSession = {
+        sessionId: Date.now(),
+        userId: undefined,
+        startUtc: new Date().toISOString(),
+        endUtc: undefined,
+        finalTimeMs: undefined,
+        livesUsed: 0,
+        isCompleted: false
+      };
+      
+      setSession(mockSession);
+      setRacing(true);
+      setGameMode('racing');
+      setStartTime(Date.now());
+      
+      console.log('Mock race started!');
     } finally {
       setLoading(false);
     }
@@ -165,7 +197,7 @@ export const Game: React.FC = () => {
               {bots
                 .sort((a, b) => b.progress - a.progress)
                 .map((bot, index) => (
-                  <div key={bot.id} style={{color: `#${bot.color.toString(16).padStart(6, '0')}`}}>
+                  <div key={bot.id} style={{color: `#${(bot.color || 0xFFFFFF).toString(16).padStart(6, '0')}`}}>
                     {index + 1}. {bot.name} ({bot.skillLevel}) - {(bot.progress * 100).toFixed(1)}% complete
                   </div>
                 ))
@@ -183,7 +215,7 @@ export const Game: React.FC = () => {
   }
 
   return (
-    <div className="game-container">
+    <div className={`game-container ${currentSession && gameMode === 'racing' ? 'racing' : 'main-page'}`}>
       <div className="game-header">
         <h1>🏁 Code Racer</h1>
         <div className="game-stats">
@@ -208,7 +240,7 @@ export const Game: React.FC = () => {
         
         {!currentSession && (
           <div className="start-section">
-            <p>Test your software engineering knowledge while racing!</p>
+            <p>Sharpen your software engineering skills while racing - from fundamentals to advanced concepts!</p>
             <button 
               onClick={startNewRace} 
               disabled={isLoading}
@@ -227,33 +259,34 @@ export const Game: React.FC = () => {
         </div>
       )}
 
+      {/* Random Questions Preview - Only show when not racing */}
+      {!currentSession && (
+        <RandomQuestions />
+      )}
+
       {currentSession && gameMode === 'racing' && (
         <>
           <RaceTrack width={screenDimensions.width} height={screenDimensions.height} />
-          <div className="race-controls">
-            <button onClick={finishRace} className="finish-button">
-              🏁 Finish Race
-            </button>
-            <button onClick={() => setShowLeaderboard(true)} className="leaderboard-button">
-              🏆 View Leaderboard
-            </button>
-          </div>
+          <GameMenu 
+            onFinishRace={finishRace}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
+            onRestartRace={handleRestart}
+          />
         </>
       )}
 
       {gameMode === 'spectating' && (
-        <div className="spectator-mode">
-          <h2>👁️ Spectator Mode</h2>
-          <p>You've run out of lives! Watch the AI complete the race.</p>
-          <div className="spectator-controls">
-            <button onClick={handleRestart} className="restart-button">
-              🔄 Try Again
-            </button>
-            <button onClick={() => setShowLeaderboard(true)} className="leaderboard-button">
-              🏆 View Leaderboard
-            </button>
+        <>
+          <div className="spectator-mode">
+            <h2>👁️ Spectator Mode</h2>
+            <p>You've run out of lives! Watch the AI complete the race.</p>
           </div>
-        </div>
+          <GameMenu 
+            onFinishRace={finishRace}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
+            onRestartRace={handleRestart}
+          />
+        </>
       )}
 
       <QuizOverlay />

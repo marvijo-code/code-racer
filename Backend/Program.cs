@@ -6,10 +6,11 @@ using Backend.Data;
 using Backend.Models;
 using Backend.Hubs;
 using Backend.Services;
+using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add local configuration file
+// Add Local configuration file for development
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // Add services to the container.

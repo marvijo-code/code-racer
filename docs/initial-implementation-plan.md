@@ -50,7 +50,7 @@ Engagement hooks: combo streaks, power‑ups unlocked by perfect answers, daily 
 - **PixiJS 8** (GPU‑accelerated 2‑D renderer) with custom ECS or use **Phaser 4** if physics needed.
 - TanStack **React‑Query** for data‑sync; **Zustand** for local state.
 - **Vitest** + **Testing‑Library** + **Playwright**.
-- **Custom Ports**: Frontend runs on `http://localhost:3000`
+- **Custom Ports**: Frontend runs on `http://localhost:3113`
 
 ### 4.2 Back‑End
 - **.NET 9** minimal APIs + **ASP.NET Core Identity** delegated to **Duende BFF (OpenID Connect)**.
@@ -182,7 +182,7 @@ public async Task<List<Question>> GetSemanticallySimilarQuestions(
 ## 8. Updated Ports Configuration
 
 ### 8.1 Development Ports
-- **Frontend (Vite)**: `http://localhost:3000`
+- **Frontend (Vite)**: `http://localhost:3113`
 - **Backend HTTPS**: `https://localhost:8443`
 - **Backend HTTP**: `http://localhost:8080`
 - **SignalR Hub**: `https://localhost:8443/raceHub`
@@ -194,7 +194,7 @@ public async Task<List<Question>> GetSemanticallySimilarQuestions(
 ```yaml
 services:
   frontend:
-    ports: ["3000:3000"]
+    ports: ["3113:3113"]
   backend:
     ports: ["8080:8080", "8443:8443"]
   postgres:
@@ -373,7 +373,7 @@ services:
 ---
 
 **Key Updates:**
-- ✅ **Custom Ports**: Frontend 3000, Backend 8080/8443
+- ✅ **Custom Ports**: Frontend 3113, Backend 8080/8443
 - ✅ **Milvus Integration**: Semantic question filtering
 - ✅ **3-Option Format**: Standardized multiple choice
 - ✅ **Vector Embeddings**: OpenAI text-embedding-3-small

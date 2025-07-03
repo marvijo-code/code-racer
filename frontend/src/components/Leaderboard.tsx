@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { apiClient } from '../lib/api';
-import type { LeaderboardEntry } from '../lib/api';
+
 
 export const Leaderboard: React.FC = () => {
   const { leaderboard, setLeaderboard } = useGameStore();

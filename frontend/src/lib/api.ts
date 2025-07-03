@@ -1,5 +1,8 @@
 const API_BASE_URL = 'http://localhost:8080/api/v1';
 
+// Add some debugging
+console.log('API Base URL:', API_BASE_URL);
+
 export interface Question {
   questionId: number;
   topic: string;

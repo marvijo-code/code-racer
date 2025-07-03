@@ -103,13 +103,13 @@ export interface GameState {
 }
 
 const initialCarPosition: CarPosition = {
-  x: 250, // Start at left side with bots
-  y: 2100, // Start at bottom of larger world (worldHeight = 2400)
+  x: 450, // Start at center (will be updated by PIXI initialization)
+  y: 1800, // Start at bottom (will be updated by PIXI initialization)
   rotation: -Math.PI / 2, // Point upward towards finish line
-  speed: 0.5, // Even slower default speed
+  speed: 0, // Start stationary for realistic physics
 };
 
-export const useGameStore = create<GameState>((set, get) => ({
+export const useGameStore = create<GameState>((set) => ({
   // Initial state
   currentSession: null,
   isLoading: false,
